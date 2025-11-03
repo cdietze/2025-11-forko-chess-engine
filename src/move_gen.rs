@@ -53,11 +53,12 @@ E.g.
 "b1" -> 1
 "h8" -> 63
 */
-fn to_index(coords: &str) -> SquareIndex {
-    let bytes = coords.as_bytes();
-    let file = (bytes[0] - b'a') as SquareIndex;
-    let rank = (bytes[1] - b'1') as SquareIndex;
-    rank * 8 + file
+pub fn to_index(coords: &str) -> Option<SquareIndex> {
+    let b = coords.as_bytes();
+    if b.len() != 2 { return None; }
+    let file = match b[0] { b'a'..=b'h' => b[0] - b'a', b'A'..=b'H' => b[0] - b'A', _ => return None };
+    let rank = match b[1] { b'1'..=b'8' => b[1] - b'1', _ => return None };
+    Some(rank * 8 + file)
 }
 
 #[cfg(test)]
@@ -67,7 +68,7 @@ mod tests {
     #[test]
     fn print_king_attacks_from_g2() {
         let square = "g2";
-        let king = single_square(to_index(square));
+        let king = single_square(to_index(square).unwrap());
         let attacks = king_attacks(king);
         println!("Input (king on {}):\n{}", square, print_bb(king));
         println!("King attacks from {}:\n{}", square, print_bb(attacks));
@@ -75,17 +76,26 @@ mod tests {
 
     #[test]
     fn test_to_index_corners() {
-        assert_eq!(to_index("a1"), 0);
-        assert_eq!(to_index("h1"), 7);
-        assert_eq!(to_index("a8"), 56);
-        assert_eq!(to_index("h8"), 63);
+        assert_eq!(to_index("a1"), Some(0));
+        assert_eq!(to_index("h1"), Some(7));
+        assert_eq!(to_index("a8"), Some(56));
+        assert_eq!(to_index("h8"), Some(63));
     }
 
     #[test]
     fn test_to_index_examples() {
-        assert_eq!(to_index("b1"), 1);
-        assert_eq!(to_index("g2"), 14);
-        assert_eq!(to_index("d4"), 27);
-        assert_eq!(to_index("e5"), 36);
+        assert_eq!(to_index("b1"), Some(1));
+        assert_eq!(to_index("g2"), Some(14));
+        assert_eq!(to_index("d4"), Some(27));
+        assert_eq!(to_index("e5"), Some(36));
+    }
+    #[test]
+    fn test_to_index_negative_examples() {
+        assert_eq!(to_index(""), None);
+        assert_eq!(to_index("a1a"), None);
+        assert_eq!(to_index("1a"), None);
+        assert_eq!(to_index("x1"), None);
+        assert_eq!(to_index("a0"), None);
+        assert_eq!(to_index("a9"), None);
     }
 }
