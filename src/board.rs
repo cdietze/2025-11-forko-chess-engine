@@ -1,21 +1,23 @@
-pub type BB = u64;
-pub type SquareIndex = u8;
+use crate::bitboard::BitBoard;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct SquareIndex(pub u8);
 
 struct Pieces {
-    king: BB,
+    king: BitBoard,
 }
 
 struct Board {
-    white: BB,
-    black: BB,
-    pawn: BB,
-    knight: BB,
-    bishop: BB,
-    rook: BB,
-    queen: BB,
-    king: BB,
+    white: BitBoard,
+    black: BitBoard,
+    pawn: BitBoard,
+    knight: BitBoard,
+    bishop: BitBoard,
+    rook: BitBoard,
+    queen: BitBoard,
+    king: BitBoard,
 }
 
-fn white_kings(b: &Board) -> BB {
+fn white_kings(b: &Board) -> BitBoard {
     b.white & b.king
 }

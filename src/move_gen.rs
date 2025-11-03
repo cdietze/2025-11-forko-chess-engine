@@ -1,41 +1,46 @@
-use crate::board::{BB, SquareIndex};
-fn king_attacks(b: BB) -> BB {
+use crate::bitboard::BitBoard;
+use crate::board::SquareIndex;
+fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | shift_east(b) | shift_west(b);
     r |= shift_north(r) | shift_south(r);
     r &= !b;
     r
 }
-
-fn shift_south(b: BB) -> BB {
-    b >> 8
+#[inline]
+fn shift_south(b: BitBoard) -> BitBoard {
+    b >> 8u32
 }
-fn shift_north(b: BB) -> BB {
-    b << 8
-}
-
-fn shift_east(b: BB) -> BB {
-    (b << 1) & NOT_A_FILE
-}
-fn shift_west(b: BB) -> BB {
-    (b >> 1) & NOT_H_FILE
+#[inline]
+fn shift_north(b: BitBoard) -> BitBoard {
+    b << 8u32
 }
 
-const NOT_A_FILE: BB = 0xfefefefefefefefe;
-const NOT_H_FILE: BB = 0x7f7f7f7f7f7f7f7f;
-const EMPTY: BB = 0;
-const FULL: BB = 0xffffffffffffffff;
-
-fn single_square(i: SquareIndex) -> BB {
-    1u64 << i
+#[inline]
+fn shift_east(b: BitBoard) -> BitBoard {
+    (b << 1u32) & NOT_A_FILE
+}
+#[inline]
+fn shift_west(b: BitBoard) -> BitBoard {
+    (b >> 1u32) & NOT_H_FILE
 }
 
-fn print_bb(b: BB) -> String {
+const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
+const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+const EMPTY: BitBoard = BitBoard(0);
+const FULL: BitBoard = BitBoard(0xffffffffffffffff);
+
+#[inline]
+fn single_square(i: SquareIndex) -> BitBoard {
+    BitBoard(1u64 << i.0)
+}
+
+fn print_bb(b: BitBoard) -> String {
     let mut result = String::new();
     for rank in (0..8).rev() {
         for file in 0..8 {
             let square = rank * 8 + file;
             result.push(' ');
-            result.push(if (b & (1u64 << square)) == 0 {
+            result.push(if (b & BitBoard(1u64 << square)) == BitBoard(0) {
                 '.'
             } else {
                 '1'
@@ -55,10 +60,19 @@ E.g.
 */
 pub fn to_index(coords: &str) -> Option<SquareIndex> {
     let b = coords.as_bytes();
-    if b.len() != 2 { return None; }
-    let file = match b[0] { b'a'..=b'h' => b[0] - b'a', b'A'..=b'H' => b[0] - b'A', _ => return None };
-    let rank = match b[1] { b'1'..=b'8' => b[1] - b'1', _ => return None };
-    Some(rank * 8 + file)
+    if b.len() != 2 {
+        return None;
+    }
+    let file = match b[0] {
+        b'a'..=b'h' => b[0] - b'a',
+        b'A'..=b'H' => b[0] - b'A',
+        _ => return None,
+    };
+    let rank = match b[1] {
+        b'1'..=b'8' => b[1] - b'1',
+        _ => return None,
+    };
+    Some(SquareIndex(rank * 8 + file))
 }
 
 #[cfg(test)]
@@ -76,18 +90,18 @@ mod tests {
 
     #[test]
     fn test_to_index_corners() {
-        assert_eq!(to_index("a1"), Some(0));
-        assert_eq!(to_index("h1"), Some(7));
-        assert_eq!(to_index("a8"), Some(56));
-        assert_eq!(to_index("h8"), Some(63));
+        assert_eq!(to_index("a1"), Some(SquareIndex(0)));
+        assert_eq!(to_index("h1"), Some(SquareIndex(7)));
+        assert_eq!(to_index("a8"), Some(SquareIndex(56)));
+        assert_eq!(to_index("h8"), Some(SquareIndex(63)));
     }
 
     #[test]
     fn test_to_index_examples() {
-        assert_eq!(to_index("b1"), Some(1));
-        assert_eq!(to_index("g2"), Some(14));
-        assert_eq!(to_index("d4"), Some(27));
-        assert_eq!(to_index("e5"), Some(36));
+        assert_eq!(to_index("b1"), Some(SquareIndex(1)));
+        assert_eq!(to_index("g2"), Some(SquareIndex(14)));
+        assert_eq!(to_index("d4"), Some(SquareIndex(27)));
+        assert_eq!(to_index("e5"), Some(SquareIndex(36)));
     }
     #[test]
     fn test_to_index_negative_examples() {
