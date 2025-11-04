@@ -31,9 +31,3 @@ impl FromStr for Square {
         Ok(Square(rank * 8 + file))
     }
 }
-
-/// Backwards compatibility: delegates to FromStr implementation
-#[inline]
-pub fn to_index(coords: &str) -> Result<Square, ParseSquareError> {
-    coords.parse()
-}

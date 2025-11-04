@@ -33,7 +33,8 @@ impl BitBoard {
     {
         let mut acc = BitBoard(0);
         for s in coords {
-            let sq = crate::square::to_index(s.as_ref())?;
+            let coords1 = s.as_ref();
+            let sq = coords1.parse()?;
             acc |= Self::from_square(sq);
         }
         Ok(acc)
