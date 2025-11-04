@@ -1,5 +1,13 @@
 use crate::bitboard::BitBoard;
+use crate::board::Board;
+use crate::r#move::Move;
 use crate::square::Square;
+
+/// Generates a list of pseudo-legal moves from given board.
+pub fn generate_moves(_board: &Board) -> Vec<Move> {
+    // TODO: implement
+    Vec::new()
+}
 
 fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | b.shift_east() | b.shift_west();

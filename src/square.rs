@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Square(pub u8);
 

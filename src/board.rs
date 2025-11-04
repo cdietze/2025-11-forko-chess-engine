@@ -1,6 +1,6 @@
 use crate::bitboard::BitBoard;
 
-struct Board {
+pub struct Board {
     white: BitBoard,
     black: BitBoard,
     pawn: BitBoard,
@@ -9,6 +9,7 @@ struct Board {
     rook: BitBoard,
     queen: BitBoard,
     king: BitBoard,
+    // TODO: also store: en passant possible?, castling possible?, side to move?,
 }
 
 impl Board {

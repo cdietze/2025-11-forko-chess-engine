@@ -1,3 +1,4 @@
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
@@ -61,8 +62,8 @@ impl fmt::Display for BitBoard {
 }
 
 /// Allow collecting from an iterator of `Square` into a `BitBoard`.
-impl core::iter::FromIterator<crate::square::Square> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = crate::square::Square>>(iter: T) -> Self {
+impl FromIterator<Square> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = Square>>(iter: T) -> Self {
         BitBoard::from_squares(iter)
     }
 }
