@@ -1,5 +1,5 @@
 use crate::bitboard::BitBoard;
-use crate::square::{SquareIndex, to_index};
+use crate::square::{Square, to_index};
 
 fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | b.shift_east() | b.shift_west();
@@ -24,18 +24,18 @@ mod tests {
 
     #[test]
     fn test_to_index_corners() {
-        assert_eq!(to_index("a1"), Ok(SquareIndex(0)));
-        assert_eq!(to_index("h1"), Ok(SquareIndex(7)));
-        assert_eq!(to_index("a8"), Ok(SquareIndex(56)));
-        assert_eq!(to_index("h8"), Ok(SquareIndex(63)));
+        assert_eq!(to_index("a1"), Ok(Square(0)));
+        assert_eq!(to_index("h1"), Ok(Square(7)));
+        assert_eq!(to_index("a8"), Ok(Square(56)));
+        assert_eq!(to_index("h8"), Ok(Square(63)));
     }
 
     #[test]
     fn test_to_index_examples() {
-        assert_eq!(to_index("b1"), Ok(SquareIndex(1)));
-        assert_eq!(to_index("g2"), Ok(SquareIndex(14)));
-        assert_eq!(to_index("d4"), Ok(SquareIndex(27)));
-        assert_eq!(to_index("e5"), Ok(SquareIndex(36)));
+        assert_eq!(to_index("b1"), Ok(Square(1)));
+        assert_eq!(to_index("g2"), Ok(Square(14)));
+        assert_eq!(to_index("d4"), Ok(Square(27)));
+        assert_eq!(to_index("e5"), Ok(Square(36)));
     }
     #[test]
     fn test_to_index_negative_examples() {

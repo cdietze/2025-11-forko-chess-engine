@@ -1,18 +1,18 @@
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
-use crate::square::SquareIndex;
+use crate::square::Square;
 use std::fmt;
 
 impl BitBoard {
     /// Creates a BitBoard with a single bit set at the given square
     #[inline]
-    pub fn from_square(i: SquareIndex) -> Self {
+    pub fn from_square(i: Square) -> Self {
         BitBoard(1u64 << i.0)
     }
     /// Creates a BitBoard from multiple square indices by combining them with OR operations
     #[inline]
-    pub fn from_squares(squares: impl IntoIterator<Item = SquareIndex>) -> Self {
+    pub fn from_squares(squares: impl IntoIterator<Item = Square>) -> Self {
         squares
             .into_iter()
             .fold(BitBoard(0), |acc, sq| acc | Self::from_square(sq))
@@ -74,9 +74,9 @@ impl core::fmt::Display for ParseSquareError {
     }
 }
 
-/// Allow collecting from an iterator of `SquareIndex` into a `BitBoard`.
-impl core::iter::FromIterator<crate::square::SquareIndex> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = crate::square::SquareIndex>>(iter: T) -> Self {
+/// Allow collecting from an iterator of `Square` into a `BitBoard`.
+impl core::iter::FromIterator<crate::square::Square> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = crate::square::Square>>(iter: T) -> Self {
         BitBoard::from_squares(iter)
     }
 }
