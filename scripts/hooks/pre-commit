@@ -1,5 +1,13 @@
    #!/bin/sh
 
+   echo "Running cargo fmt (check)..."
+   cargo fmt --all -- --check
+
+   if [ $? -ne 0 ]; then
+       echo "Code is not formatted. Please run 'cargo fmt'. Commit aborted."
+       exit 1
+   fi
+
    echo "Running cargo test..."
    cargo test
 
