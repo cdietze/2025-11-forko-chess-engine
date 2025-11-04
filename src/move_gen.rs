@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn print_king_attacks_from_g2() {
         let square = "g2";
-        let king = single_square(to_index(square).unwrap());
+        let king = BitBoard::from_square(to_index(square).unwrap());
         let attacks = king_attacks(king);
         println!("Input (king on {}):\n{}", square, print_bb(king));
         println!("King attacks from {}:\n{}", square, print_bb(attacks));
