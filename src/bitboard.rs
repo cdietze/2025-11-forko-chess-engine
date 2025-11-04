@@ -19,8 +19,7 @@ impl BitBoard {
 
     /// Tries to create a BitBoard from coordinate strings like "a1", "e5", "f3".
     ///
-    /// Uses the existing coordinate-to-index conversion and returns an error
-    /// if any coordinate is invalid.
+    /// Returns an error if any coordinate is invalid.
     ///
     /// Examples:
     /// let bb = BitBoard::try_from_coords(["a1", "e5", "f3"])?;
@@ -33,8 +32,7 @@ impl BitBoard {
     {
         let mut acc = BitBoard(0);
         for s in coords {
-            let sq = crate::move_gen::to_index(s.as_ref())
-                .ok_or(ParseSquareError)?;
+            let sq = crate::move_gen::to_index(s.as_ref())?;
             acc |= Self::from_square(sq);
         }
         Ok(acc)

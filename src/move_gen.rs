@@ -1,5 +1,6 @@
 use crate::bitboard::BitBoard;
 use crate::board::SquareIndex;
+use crate::bitboard::ParseSquareError;
 fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | shift_east(b) | shift_west(b);
     r |= shift_north(r) | shift_south(r);
@@ -58,26 +59,27 @@ E.g.
 "b1" -> 1
 "h8" -> 63
 */
-pub fn to_index(coords: &str) -> Option<SquareIndex> {
+pub fn to_index(coords: &str) -> Result<SquareIndex, ParseSquareError> {
     let b = coords.as_bytes();
     if b.len() != 2 {
-        return None;
+        return Err(ParseSquareError);
     }
     let file = match b[0] {
         b'a'..=b'h' => b[0] - b'a',
         b'A'..=b'H' => b[0] - b'A',
-        _ => return None,
+        _ => return Err(ParseSquareError),
     };
     let rank = match b[1] {
         b'1'..=b'8' => b[1] - b'1',
-        _ => return None,
+        _ => return Err(ParseSquareError),
     };
-    Some(SquareIndex(rank * 8 + file))
+    Ok(SquareIndex(rank * 8 + file))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bitboard::ParseSquareError;
 
     #[test]
     fn print_king_attacks_from_g2() {
@@ -90,26 +92,26 @@ mod tests {
 
     #[test]
     fn test_to_index_corners() {
-        assert_eq!(to_index("a1"), Some(SquareIndex(0)));
-        assert_eq!(to_index("h1"), Some(SquareIndex(7)));
-        assert_eq!(to_index("a8"), Some(SquareIndex(56)));
-        assert_eq!(to_index("h8"), Some(SquareIndex(63)));
+        assert_eq!(to_index("a1"), Ok(SquareIndex(0)));
+        assert_eq!(to_index("h1"), Ok(SquareIndex(7)));
+        assert_eq!(to_index("a8"), Ok(SquareIndex(56)));
+        assert_eq!(to_index("h8"), Ok(SquareIndex(63)));
     }
 
     #[test]
     fn test_to_index_examples() {
-        assert_eq!(to_index("b1"), Some(SquareIndex(1)));
-        assert_eq!(to_index("g2"), Some(SquareIndex(14)));
-        assert_eq!(to_index("d4"), Some(SquareIndex(27)));
-        assert_eq!(to_index("e5"), Some(SquareIndex(36)));
+        assert_eq!(to_index("b1"), Ok(SquareIndex(1)));
+        assert_eq!(to_index("g2"), Ok(SquareIndex(14)));
+        assert_eq!(to_index("d4"), Ok(SquareIndex(27)));
+        assert_eq!(to_index("e5"), Ok(SquareIndex(36)));
     }
     #[test]
     fn test_to_index_negative_examples() {
-        assert_eq!(to_index(""), None);
-        assert_eq!(to_index("a1a"), None);
-        assert_eq!(to_index("1a"), None);
-        assert_eq!(to_index("x1"), None);
-        assert_eq!(to_index("a0"), None);
-        assert_eq!(to_index("a9"), None);
+        assert_eq!(to_index(""), Err(ParseSquareError));
+        assert_eq!(to_index("a1a"), Err(ParseSquareError));
+        assert_eq!(to_index("1a"), Err(ParseSquareError));
+        assert_eq!(to_index("x1"), Err(ParseSquareError));
+        assert_eq!(to_index("a0"), Err(ParseSquareError));
+        assert_eq!(to_index("a9"), Err(ParseSquareError));
     }
 }
