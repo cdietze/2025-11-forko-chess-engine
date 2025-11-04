@@ -121,6 +121,8 @@ impl ShrAssign<u8> for BitBoard {
 
 // General BitBoard utility methods and constants
 impl BitBoard {
+    pub const EMPTY: BitBoard = BitBoard(0);
+    pub const FULL: BitBoard = BitBoard(!0);
     pub const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
     pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
     #[inline]

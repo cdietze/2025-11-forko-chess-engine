@@ -1,9 +1,5 @@
 use crate::bitboard::BitBoard;
 
-struct Pieces {
-    king: BitBoard,
-}
-
 struct Board {
     white: BitBoard,
     black: BitBoard,
@@ -17,7 +13,7 @@ struct Board {
 
 impl Board {
     #[inline]
-    fn white_kings(self) -> BitBoard {
+    fn white_kings(&self) -> BitBoard {
         self.white & self.king
     }
 }

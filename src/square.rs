@@ -1,8 +1,19 @@
-use crate::bitboard::ParseSquareError;
 use std::str::FromStr;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Square(pub u8);
+
+/// Error type for parsing algebraic square coordinates (like "a1").
+///
+/// This is kept intentionally lightweight as only a single failure mode is needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseSquareError;
+
+impl core::fmt::Display for ParseSquareError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "invalid coordinate (expected like \"e4\")")
+    }
+}
 
 impl FromStr for Square {
     type Err = ParseSquareError;

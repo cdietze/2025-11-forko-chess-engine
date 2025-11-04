@@ -1,7 +1,7 @@
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
-use crate::square::Square;
+use crate::square::{ParseSquareError, Square};
 use std::fmt;
 
 impl BitBoard {
@@ -31,13 +31,10 @@ impl BitBoard {
         S: AsRef<str>,
         I: IntoIterator<Item = S>,
     {
-        let mut acc = BitBoard(0);
-        for s in coords {
-            let coords1 = s.as_ref();
-            let sq = coords1.parse()?;
-            acc |= Self::from_square(sq);
-        }
-        Ok(acc)
+        coords.into_iter().try_fold(BitBoard::EMPTY, |acc, s| {
+            let sq: Square = s.as_ref().parse()?;
+            Ok(acc | BitBoard::from_square(sq))
+        })
     }
 }
 
@@ -60,18 +57,6 @@ impl fmt::Display for BitBoard {
             writeln!(f)?;
         }
         Ok(())
-    }
-}
-
-/// Error type for parsing algebraic square coordinates (like "a1").
-///
-/// This is kept intentionally lightweight as only a single failure mode is needed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ParseSquareError;
-
-impl core::fmt::Display for ParseSquareError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "invalid coordinate (expected like \"e4\")")
     }
 }
 

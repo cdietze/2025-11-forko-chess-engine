@@ -4,14 +4,13 @@ use crate::square::Square;
 fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | b.shift_east() | b.shift_west();
     r |= r.shift_north() | r.shift_south();
-    r &= !b;
-    r
+    r & !b
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bitboard::ParseSquareError;
+    use crate::square::ParseSquareError;
 
     #[test]
     fn print_king_attacks_from_g2() {
@@ -39,7 +38,6 @@ mod tests {
     }
     #[test]
     fn test_to_index_negative_examples() {
-        let parse = |s: &str| s.parse::<Square>();
         assert_eq!("".parse::<Square>(), Err(ParseSquareError));
         assert_eq!("a1a".parse::<Square>(), Err(ParseSquareError));
         assert_eq!("1a".parse::<Square>(), Err(ParseSquareError));
