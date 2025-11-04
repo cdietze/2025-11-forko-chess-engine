@@ -16,7 +16,6 @@ struct Board {
 }
 
 impl Board {
-
     #[inline]
     fn white_kings(self) -> BitBoard {
         self.white & self.king

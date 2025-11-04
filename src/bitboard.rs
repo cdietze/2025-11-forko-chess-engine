@@ -1,8 +1,8 @@
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
-use std::fmt;
 use crate::square::SquareIndex;
+use std::fmt;
 
 impl BitBoard {
     /// Creates a BitBoard with a single bit set at the given square
@@ -46,12 +46,14 @@ impl fmt::Display for BitBoard {
             for file in 0..8 {
                 let square = rank * 8 + file;
                 write!(f, " ")?;
-                write!(f, "{}",
-                       if (*self & BitBoard(1u64 << square)) == BitBoard(0) {
-                           '.'
-                       } else {
-                           '1'
-                       }
+                write!(
+                    f,
+                    "{}",
+                    if (*self & BitBoard(1u64 << square)) == BitBoard(0) {
+                        '.'
+                    } else {
+                        '1'
+                    }
                 )?;
             }
             writeln!(f)?;
