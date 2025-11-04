@@ -14,11 +14,11 @@ use crate::square::Square;
 /// - The type is a `#[repr(transparent)]` wrapper over `u16` for zero-cost passing and copying.
 ///
 /// Example
-/// ```
+/// ```text
 /// use cpd_chess::square::Square;
 /// use cpd_chess::mv::Move; // re-export path may differ depending on your module setup
 ///
-/// let m = Move::new(Square(0), Square(63)).with_flags(0b1010);
+/// let m = Move::from_parts(0, 63, 0b1010);
 /// assert_eq!(m.from(), Square(0));
 /// assert_eq!(m.to(), Square(63));
 /// assert_eq!(m.flags(), 0b1010);
@@ -90,6 +90,31 @@ impl Move {
     }
 }
 
+/// Error type for parsing algebraic move coordinates like "e2e4".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseMoveError;
+
+impl core::fmt::Display for ParseMoveError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "invalid move coordinate (expected like \"e2e4\")")
+    }
+}
+
+impl std::str::FromStr for Move {
+    type Err = ParseMoveError;
+
+    fn from_str(coords: &str) -> Result<Self, Self::Err> {
+        // Delegate to Square::from_str for both squares to avoid duplicate parsing logic.
+        let from = coords.get(0..2).ok_or(ParseMoveError).and_then(|s| {
+            <crate::square::Square as std::str::FromStr>::from_str(s).map_err(|_| ParseMoveError)
+        })?;
+        let to = coords.get(2..4).ok_or(ParseMoveError).and_then(|s| {
+            <crate::square::Square as std::str::FromStr>::from_str(s).map_err(|_| ParseMoveError)
+        })?;
+        Ok(Move::new(from, to))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,5 +134,23 @@ mod tests {
         assert_eq!(m.to(), Square(56));
         assert_eq!(m.flags(), 0b1111);
         assert_eq!(m.raw() & 0xFFFF, m.raw());
+    }
+
+    #[test]
+    fn parse_from_coords_str() {
+        use std::str::FromStr;
+        let m = Move::from_str("e2e4").expect("valid coords");
+        assert_eq!(m.from(), Square(12)); // e2 => 1*8 + 4 = 12
+        assert_eq!(m.to(), Square(28)); // e4 => 3*8 + 4 = 28
+        assert_eq!(m.flags(), 0);
+    }
+
+    #[test]
+    fn from_str_trait_works() {
+        use std::str::FromStr;
+        let m = Move::from_str("b1c3").unwrap();
+        assert_eq!(m.from(), Square(1)); // b1 => 0*8 + 1
+        assert_eq!(m.to(), Square(18)); // c3 => 2*8 + 2
+        assert_eq!(m.flags(), 0);
     }
 }
