@@ -1,7 +1,7 @@
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
-use crate::board::SquareIndex;
+use crate::square::SquareIndex;
 
 impl BitBoard {
     /// Creates a BitBoard with a single bit set at the given square
@@ -32,7 +32,7 @@ impl BitBoard {
     {
         let mut acc = BitBoard(0);
         for s in coords {
-            let sq = crate::move_gen::to_index(s.as_ref())?;
+            let sq = crate::square::to_index(s.as_ref())?;
             acc |= Self::from_square(sq);
         }
         Ok(acc)
@@ -40,7 +40,7 @@ impl BitBoard {
 }
 
 /// Error type for parsing algebraic square coordinates (like "a1").
-/// 
+///
 /// This is kept intentionally lightweight as only a single failure mode is needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseSquareError;
@@ -52,9 +52,8 @@ impl core::fmt::Display for ParseSquareError {
 }
 
 /// Allow collecting from an iterator of `SquareIndex` into a `BitBoard`.
-impl core::iter::FromIterator<crate::board::SquareIndex> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = crate::board::SquareIndex>>(iter: T) -> Self {
+impl core::iter::FromIterator<crate::square::SquareIndex> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = crate::square::SquareIndex>>(iter: T) -> Self {
         BitBoard::from_squares(iter)
     }
 }
-

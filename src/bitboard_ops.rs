@@ -1,9 +1,9 @@
 // Bitwise and shift operators so we can write idiomatic expressions on BitBoard
+use crate::bitboard::BitBoard;
 use core::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
     ShrAssign,
 };
-use crate::bitboard::BitBoard;
 
 impl BitAnd for BitBoard {
     type Output = Self;

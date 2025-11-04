@@ -1,6 +1,6 @@
 use crate::bitboard::BitBoard;
-use crate::board::SquareIndex;
 use crate::bitboard::ParseSquareError;
+use crate::square::{to_index, SquareIndex};
 fn king_attacks(b: BitBoard) -> BitBoard {
     let mut r = b | shift_east(b) | shift_west(b);
     r |= shift_north(r) | shift_south(r);
@@ -30,11 +30,6 @@ const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
 const EMPTY: BitBoard = BitBoard(0);
 const FULL: BitBoard = BitBoard(0xffffffffffffffff);
 
-#[inline]
-fn single_square(i: SquareIndex) -> BitBoard {
-    BitBoard(1u64 << i.0)
-}
-
 fn print_bb(b: BitBoard) -> String {
     let mut result = String::new();
     for rank in (0..8).rev() {
@@ -50,30 +45,6 @@ fn print_bb(b: BitBoard) -> String {
         result.push('\n');
     }
     result
-}
-
-/**
-Converts given `coords` into its index on the board.
-E.g.
-"a1" -> 0
-"b1" -> 1
-"h8" -> 63
-*/
-pub fn to_index(coords: &str) -> Result<SquareIndex, ParseSquareError> {
-    let b = coords.as_bytes();
-    if b.len() != 2 {
-        return Err(ParseSquareError);
-    }
-    let file = match b[0] {
-        b'a'..=b'h' => b[0] - b'a',
-        b'A'..=b'H' => b[0] - b'A',
-        _ => return Err(ParseSquareError),
-    };
-    let rank = match b[1] {
-        b'1'..=b'8' => b[1] - b'1',
-        _ => return Err(ParseSquareError),
-    };
-    Ok(SquareIndex(rank * 8 + file))
 }
 
 #[cfg(test)]

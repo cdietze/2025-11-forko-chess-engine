@@ -1,8 +1,5 @@
 use crate::bitboard::BitBoard;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SquareIndex(pub u8);
-
 struct Pieces {
     king: BitBoard,
 }
