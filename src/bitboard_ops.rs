@@ -118,3 +118,28 @@ impl ShrAssign<u8> for BitBoard {
         self.0 >>= rhs;
     }
 }
+
+// General BitBoard utility methods and constants
+impl BitBoard {
+    pub const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
+    pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+    #[inline]
+    pub fn shift_north(self) -> Self {
+        self << 8u32
+    }
+
+    #[inline]
+    pub fn shift_south(self) -> Self {
+        self >> 8u32
+    }
+
+    #[inline]
+    pub fn shift_east(self) -> Self {
+        (self << 1u32) & BitBoard::NOT_A_FILE
+    }
+
+    #[inline]
+    pub fn shift_west(self) -> Self {
+        (self >> 1u32) & BitBoard::NOT_H_FILE
+    }
+}

@@ -15,6 +15,10 @@ struct Board {
     king: BitBoard,
 }
 
-fn white_kings(b: &Board) -> BitBoard {
-    b.white & b.king
+impl Board {
+
+    #[inline]
+    fn white_kings(self) -> BitBoard {
+        self.white & self.king
+    }
 }

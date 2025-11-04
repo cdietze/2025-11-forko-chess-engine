@@ -1,6 +1,7 @@
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
+use std::fmt;
 use crate::square::SquareIndex;
 
 impl BitBoard {
@@ -36,6 +37,26 @@ impl BitBoard {
             acc |= Self::from_square(sq);
         }
         Ok(acc)
+    }
+}
+
+impl fmt::Display for BitBoard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rank in (0..8).rev() {
+            for file in 0..8 {
+                let square = rank * 8 + file;
+                write!(f, " ")?;
+                write!(f, "{}",
+                       if (*self & BitBoard(1u64 << square)) == BitBoard(0) {
+                           '.'
+                       } else {
+                           '1'
+                       }
+                )?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 
