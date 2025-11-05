@@ -1,5 +1,5 @@
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
 use crate::square::{ParseSquareError, Square};
@@ -8,7 +8,7 @@ use std::fmt;
 impl BitBoard {
     /// Creates a BitBoard with a single bit set at the given square
     #[inline]
-    pub fn from_square(i: Square) -> Self {
+    pub const fn from_square(i: Square) -> Self {
         BitBoard(1u64 << i.0)
     }
     /// Creates a BitBoard from multiple square indices by combining them with OR operations
@@ -16,7 +16,7 @@ impl BitBoard {
     pub fn from_squares(squares: impl IntoIterator<Item = Square>) -> Self {
         squares
             .into_iter()
-            .fold(BitBoard(0), |acc, sq| acc | Self::from_square(sq))
+            .fold(BitBoard::EMPTY, |acc, sq| acc.or(Self::from_square(sq)))
     }
 
     /// Tries to create a BitBoard from coordinate strings like "a1", "e5", "f3".
@@ -34,7 +34,7 @@ impl BitBoard {
     {
         coords.into_iter().try_fold(BitBoard::EMPTY, |acc, s| {
             let sq: Square = s.as_ref().parse()?;
-            Ok(acc | BitBoard::from_square(sq))
+            Ok(acc.or(BitBoard::from_square(sq)))
         })
     }
 }
@@ -48,7 +48,7 @@ impl fmt::Display for BitBoard {
                 write!(
                     f,
                     "{}",
-                    if (*self & BitBoard(1u64 << square)) == BitBoard(0) {
+                    if (*self).and(BitBoard::from_square(Square(square))) == BitBoard::EMPTY {
                         '.'
                     } else {
                         '1'
@@ -58,6 +58,11 @@ impl fmt::Display for BitBoard {
             writeln!(f)?;
         }
         Ok(())
+    }
+}
+impl fmt::Debug for BitBoard {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, f)
     }
 }
 

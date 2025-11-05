@@ -1,8 +1,32 @@
 use std::str::FromStr;
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Square(pub u8);
+
+impl Square {
+    pub fn algebraic(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl core::fmt::Display for Square {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let idx = self.0;
+        let file = (idx % 8) as u8;
+        let rank = (idx / 8) as u8;
+        let file_char = (b'a' + file) as char;
+        let rank_char = (b'1' + rank) as char;
+        write!(f, "{}{}", file_char, rank_char)
+    }
+}
+
+impl core::fmt::Debug for Square {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Use Display format for Debug too, so test output shows algebraic notation
+        core::fmt::Display::fmt(self, f)
+    }
+}
 
 /// Error type for parsing algebraic square coordinates (like "a1").
 ///
