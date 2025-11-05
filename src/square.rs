@@ -67,3 +67,30 @@ impl FromStr for Square {
         Ok(Square(rank * 8 + file))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::square::ParseSquareError;
+
+    #[test]
+    fn parse_algebraic_notation() {
+        assert_eq!("a1".parse(), Ok(Square(0)));
+        assert_eq!("h1".parse(), Ok(Square(7)));
+        assert_eq!("a8".parse(), Ok(Square(56)));
+        assert_eq!("h8".parse(), Ok(Square(63)));
+        assert_eq!("b1".parse(), Ok(Square(1)));
+        assert_eq!("g2".parse(), Ok(Square(14)));
+        assert_eq!("d4".parse(), Ok(Square(27)));
+        assert_eq!("e5".parse(), Ok(Square(36)));
+    }
+    #[test]
+    fn parse_algebraic_notation_negative_examples() {
+        assert_eq!("".parse::<Square>(), Err(ParseSquareError));
+        assert_eq!("a1a".parse::<Square>(), Err(ParseSquareError));
+        assert_eq!("1a".parse::<Square>(), Err(ParseSquareError));
+        assert_eq!("x1".parse::<Square>(), Err(ParseSquareError));
+        assert_eq!("a0".parse::<Square>(), Err(ParseSquareError));
+        assert_eq!("a9".parse::<Square>(), Err(ParseSquareError));
+    }
+}

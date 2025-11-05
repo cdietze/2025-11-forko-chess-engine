@@ -1,3 +1,4 @@
+use std::ops::Not;
 // Bitwise and shift operators so we can write idiomatic expressions on BitBoard
 pub(crate) use crate::bitboard::BitBoard;
 use crate::square::Square;
@@ -20,6 +21,10 @@ impl BitBoard {
         BitBoard(self.0 | rhs.0)
     }
     #[inline]
+    pub const fn xor(self, rhs: Self) -> Self {
+        BitBoard(self.0 ^ rhs.0)
+    }
+    #[inline]
     pub const fn not(self) -> Self {
         BitBoard(!self.0)
     }
@@ -31,6 +36,40 @@ impl BitBoard {
     pub const FULL: BitBoard = BitBoard(!0);
     pub const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
     pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+
+    #[inline]
+    pub const fn set(self, idx: u8, value: bool) -> Self {
+        if value {
+            self.set_bit(idx)
+        } else {
+            self.clear_bit(idx)
+        }
+    }
+
+    #[inline]
+    pub const fn set_bit(self, idx: u8) -> Self {
+        self.or(BitBoard::from_idx(idx))
+    }
+
+    #[inline]
+    pub const fn clear_bit(self, idx: u8) -> Self {
+        self.and(BitBoard::from_idx(idx).not())
+    }
+
+    #[inline]
+    pub const fn is_set(self, idx: u8) -> bool {
+        (self.0 & (1 << idx)) != 0
+    }
+
+    #[inline]
+    pub const fn is_clear(self, idx: u8) -> bool {
+        !self.is_set(idx)
+    }
+
+    #[inline]
+    pub const fn toggle_bit(self, idx: u8) -> Self {
+        self.xor(BitBoard::from_idx(idx))
+    }
     #[inline]
     pub const fn shift_north(self) -> Self {
         self.shl(8)

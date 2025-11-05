@@ -11,6 +11,11 @@ impl BitBoard {
     pub const fn from_square(i: Square) -> Self {
         BitBoard(1u64 << i.0)
     }
+    #[inline]
+    pub const fn from_idx(i: u8) -> Self {
+        BitBoard(1u64 << i)
+    }
+
     /// Creates a BitBoard from multiple square indices by combining them with OR operations
     #[inline]
     pub fn from_squares(squares: impl IntoIterator<Item = Square>) -> Self {
