@@ -25,7 +25,7 @@ use crate::square::Square;
 /// ```
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Move(u16);
 
 impl Move {
@@ -97,6 +97,19 @@ pub struct ParseMoveError;
 impl core::fmt::Display for ParseMoveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "invalid move coordinate (expected like \"e2e4\")")
+    }
+}
+
+impl core::fmt::Display for Move {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}{}", self.from(), self.to())
+    }
+}
+
+impl core::fmt::Debug for Move {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Use Display format for Debug too for concise output
+        core::fmt::Display::fmt(self, f)
     }
 }
 

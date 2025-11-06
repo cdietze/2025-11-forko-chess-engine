@@ -1,5 +1,5 @@
 use crate::bitboard::BitBoard;
-use crate::board::Board;
+use crate::board::{Board, Piece};
 use crate::r#move::Move;
 use crate::square::Square;
 
@@ -15,7 +15,8 @@ impl BitBoard {
 /// Generates a list of pseudo-legal moves from given board.
 pub fn generate_moves(_board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
-    add_king_moves(&mut v, _board.white_kings());
+    let kings = _board.pieces(Piece::King, _board.color_to_move());
+    add_king_moves(&mut v, kings);
     v
 }
 
@@ -41,6 +42,8 @@ const KING_MOVES: [BitBoard; 64] = {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::board::{Color, Piece};
+    use rand::prelude::IndexedRandom;
     use std::collections::HashSet;
 
     #[test]
@@ -60,5 +63,38 @@ mod tests {
         let actual: HashSet<String> = moves.iter().map(|m| m.to().algebraic()).collect();
         let expected: HashSet<String> = expected.iter().map(|&s| s.to_string()).collect();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn random_game_two_kings() {
+        use rand::SeedableRng;
+        use rand::seq::SliceRandom;
+
+        // Create an empty board
+        let mut board = Board::empty();
+        board.set_piece("e1".parse().unwrap(), Piece::King, Color::White);
+        board.set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
+
+        println!("\nInitial position:");
+        println!("{}", board);
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+
+        // Total of 10 ply moves
+        for move_num in 1..=10 {
+            let moves = generate_moves(&board);
+            println!("Pseudo-Legal Moves: {:?}", moves);
+            if let Some(white_move) = moves.choose(&mut rng) {
+                println!(
+                    "Ply {}: {} plays {} -> {}",
+                    move_num,
+                    board.color_to_move(),
+                    white_move.from().algebraic(),
+                    white_move.to().algebraic()
+                );
+                board.do_move(*white_move);
+                println!("{}", board);
+            }
+        }
     }
 }
