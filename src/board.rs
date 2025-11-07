@@ -46,10 +46,10 @@ impl Piece {
 
 pub struct Board {
     /// Bitboard of all white pieces on the board, all other squares have black pieces or are empty.
-    white: BitBoard,
+    pub white: BitBoard,
     /// One BitBoard per piece type (color is derived via `white`).
-    pieces: [BitBoard; Piece::COUNT],
-    white_to_move: bool,
+    pub pieces: [BitBoard; Piece::COUNT],
+    pub white_to_move: bool,
     // TODO: also store: en passant possible?, castling possible?, side to move?,
 }
 
@@ -65,7 +65,6 @@ impl Board {
         // For now, only move the white king (matches current move generator usage)
         let k = Piece::King.idx();
         self.pieces[k] = self.pieces[k].clear_bit(m.from().0).set_bit(m.to().0);
-        // update "white" bitboard (assumes white is moving)
         self.white = self
             .white
             .clear_bit(m.from().0)
@@ -77,13 +76,14 @@ impl Board {
         todo!("implement undo_move")
     }
 
-    pub fn set_piece(&mut self, square: crate::square::Square, piece: Piece, color: Color) {
+    pub fn set_piece(mut self, square: crate::square::Square, piece: Piece, color: Color) -> Self {
         match color {
             Color::White => self.white = self.white.set_bit(square.0),
             Color::Black => self.white = self.white.clear_bit(square.0),
         }
         let p = piece.idx();
         self.pieces[p] = self.pieces[p].set_bit(square.0);
+        self
     }
 
     #[inline]
@@ -104,16 +104,15 @@ impl Board {
             Color::Black => bb.and(self.white.not()),
         }
     }
-    /// Constructs a board that contains only a single white king on the given square.
-    pub fn from_white_king(square: crate::square::Square) -> Self {
-        let bb = BitBoard::from_square(square);
-        let mut pieces = [BitBoard(0); Piece::COUNT];
-        pieces[Piece::King.idx()] = bb;
-        Board {
-            white: bb,
-            pieces,
-            white_to_move: true,
-        }
+
+    /// Returns a bitboard of all occupied squares
+    #[inline]
+    pub fn occupied(&self) -> BitBoard {
+        self.pieces
+            .iter()
+            .copied()
+            .reduce(|acc, bb| acc.or(bb))
+            .unwrap_or(BitBoard(0))
     }
 
     /// Creates an empty board with no pieces set.

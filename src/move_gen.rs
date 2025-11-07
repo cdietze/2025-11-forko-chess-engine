@@ -13,18 +13,29 @@ impl BitBoard {
 }
 
 /// Generates a list of pseudo-legal moves from given board.
-pub fn generate_moves(_board: &Board) -> Vec<Move> {
+pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
-    let kings = _board.pieces(Piece::King, _board.color_to_move());
+
+    let current_color_board: BitBoard = if board.white_to_move {
+        board.white
+    } else {
+        board.white.not()
+    };
+    let other_color_board: BitBoard = current_color_board.not();
+    let occupied = board.occupied();
+
+    let add_king_moves = |v: &mut Vec<Move>, b: BitBoard| {
+        b.for_each_set_bit(|square| {
+            let moves = KING_MOVES[square.0 as usize];
+            // Don't capture own pieces
+            let moves = moves.and(occupied.and(current_color_board).not());
+            moves.for_each_set_bit(|move_square| v.push(Move::new(square, move_square)))
+        });
+    };
+
+    let kings = board.pieces(Piece::King, board.color_to_move());
     add_king_moves(&mut v, kings);
     v
-}
-
-fn add_king_moves(v: &mut Vec<Move>, b: BitBoard) {
-    b.for_each_set_bit(|square| {
-        let moves = KING_MOVES[square.0 as usize];
-        moves.for_each_set_bit(|move_square| v.push(Move::new(square, move_square)))
-    });
 }
 
 /// Precomputed king move bitboards
@@ -47,10 +58,26 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn generate_moves_white_king_on_a1() {
-        let board = Board::from_white_king("a1".parse().unwrap());
+    fn king_should_move_correct() {
+        let board = Board::empty().set_piece("a1".parse().unwrap(), Piece::King, Color::White);
         assert_move_sources(&generate_moves(&board), &["a1"]);
         assert_move_destinations(&generate_moves(&board), &["b1", "a2", "b2"]);
+    }
+
+    #[test]
+    fn king_should_try_to_capture_opponents_piece() {
+        let board = Board::empty()
+            .set_piece("a1".parse().unwrap(), Piece::King, Color::White)
+            .set_piece("a2".parse().unwrap(), Piece::Pawn, Color::Black);
+        assert_move_destinations(&generate_moves(&board), &["a2", "b1", "b2"]);
+    }
+
+    #[test]
+    fn king_should_not_capture_own_piece() {
+        let board = Board::empty()
+            .set_piece("a1".parse().unwrap(), Piece::King, Color::White)
+            .set_piece("a2".parse().unwrap(), Piece::Pawn, Color::White);
+        assert_move_destinations(&generate_moves(&board), &["b1", "b2"]);
     }
 
     fn assert_move_sources(moves: &[Move], expected: &[&str]) {
@@ -68,12 +95,10 @@ mod tests {
     #[test]
     fn random_game_two_kings() {
         use rand::SeedableRng;
-        use rand::seq::SliceRandom;
 
-        // Create an empty board
-        let mut board = Board::empty();
-        board.set_piece("e1".parse().unwrap(), Piece::King, Color::White);
-        board.set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
+        let mut board = Board::empty()
+            .set_piece("e1".parse().unwrap(), Piece::King, Color::White)
+            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
 
         println!("\nInitial position:");
         println!("{}", board);
