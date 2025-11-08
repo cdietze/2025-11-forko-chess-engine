@@ -1,9 +1,8 @@
 use crate::bitboard::BitBoard;
-use crate::board::{Board, Piece};
+use crate::board::{Board, Color, Piece};
 use crate::r#move::Move;
 use crate::precomputed::{KING_MOVES, RAYS, Rays};
 use crate::square::Square;
-use std::array;
 
 impl BitBoard {}
 
@@ -18,31 +17,47 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     };
     let occupied = board.occupied();
 
-    let add_king_moves = |v: &mut Vec<Move>, b: BitBoard| {
-        b.for_each_set_bit(|square| {
-            let moves = KING_MOVES[square.0 as usize];
-            // Don't capture own pieces
-            let moves = moves.and(occupied.and(own_color_board).not());
-            moves.for_each_set_bit(|move_square| v.push(Move::new(square, move_square)))
-        });
-    };
+    let opponent_attack_map = generate_attack_map(board, board.color_to_move().opposite());
 
-    let kings = board.pieces(Piece::King, board.color_to_move());
-    add_king_moves(&mut v, kings);
-    let rooks = board.pieces(Piece::Rook, board.color_to_move());
-    rooks.for_each_set_bit(|rook_square| {
-        add_rook_moves(&mut v, board, rook_square.0);
-    });
+    board
+        .pieces(Piece::King, board.color_to_move())
+        .for_each_set_bit(|king_square| {
+            let tos = KING_MOVES[king_square.0 as usize];
+            // Don't capture own pieces
+            let tos = tos.and(occupied.and(own_color_board).not());
+            // Don't move into check
+            let tos = tos.and(opponent_attack_map.not());
+            tos.for_each_set_bit(|to_square| v.push(Move::new(king_square, to_square)))
+        });
+
+    board
+        .pieces(Piece::Rook, board.color_to_move())
+        .for_each_set_bit(|rook_square| {
+            let moves = rook_moves(board, rook_square);
+            moves.for_each_set_bit(|move_square| {
+                v.push(Move::new(Square(rook_square.0), move_square))
+            })
+        });
     v
 }
 
-fn add_rook_moves(v: &mut Vec<Move>, board: &Board, square: u8) {
-    let moves = rook_moves(board, square);
-    moves.for_each_set_bit(|move_square| v.push(Move::new(Square(square), move_square)))
+fn generate_attack_map(board: &Board, color: Color) -> BitBoard {
+    let mut map = BitBoard::EMPTY;
+    board
+        .pieces(Piece::King, color)
+        .for_each_set_bit(|king_square| {
+            map = map.or(KING_MOVES[king_square.0 as usize]);
+        });
+    board
+        .pieces(Piece::Rook, color)
+        .for_each_set_bit(|rook_square| {
+            map = map.or(rook_moves(board, rook_square));
+        });
+    map
 }
 
-fn rook_moves(board: &Board, square: u8) -> BitBoard {
-    let rays = RAYS[square as usize];
+fn rook_moves(board: &Board, square: Square) -> BitBoard {
+    let rays = RAYS[square.0 as usize];
     let occupied = board.occupied();
     let own_color_board: BitBoard = if board.white_to_move {
         board.white
@@ -202,7 +217,7 @@ mod tests {
                     white_move.from().algebraic(),
                     white_move.to().algebraic()
                 );
-                board.do_move(*white_move);
+                board.make_move(*white_move);
                 println!("{}", board);
             }
         }

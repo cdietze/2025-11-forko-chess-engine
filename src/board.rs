@@ -14,6 +14,13 @@ impl Color {
     pub const fn idx(self) -> usize {
         self as usize
     }
+    #[inline]
+    pub const fn opposite(self) -> Self {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
 }
 
 impl std::fmt::Display for Color {
@@ -61,7 +68,7 @@ impl Board {
             Color::Black
         }
     }
-    pub fn do_move(&mut self, m: Move) {
+    pub fn make_move(&mut self, m: Move) {
         let from = m.from().0;
         let to = m.to().0;
 
@@ -93,8 +100,8 @@ impl Board {
         self.white_to_move = !self.white_to_move;
     }
 
-    pub fn undo_move(&mut self, m: Move, irreversible_stuff: String) {
-        todo!("implement undo_move")
+    pub fn unmake_move(&mut self, m: Move, irreversible_stuff: String) {
+        todo!("implement unmake_move")
     }
 
     pub fn set_piece(mut self, square: crate::square::Square, piece: Piece, color: Color) -> Self {
