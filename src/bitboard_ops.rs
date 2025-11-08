@@ -38,6 +38,19 @@ impl BitBoard {
     pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
 
     #[inline]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    #[inline]
+    pub const fn bit_scan_forward(self) -> u8 {
+        self.0.trailing_zeros() as u8
+    }
+    #[inline]
+    pub const fn bit_scan_backward(self) -> u8 {
+        63 - self.0.leading_zeros() as u8
+    }
+    #[inline]
     pub const fn set(self, idx: u8, value: bool) -> Self {
         if value {
             self.set_bit(idx)
@@ -77,9 +90,8 @@ impl BitBoard {
 
     #[inline]
     pub const fn shift_south(self) -> Self {
-        self.shr(8).and(BitBoard::NOT_A_FILE)
+        self.shr(8)
     }
-
     #[inline]
     pub const fn shift_east(self) -> Self {
         self.shl(1).and(BitBoard::NOT_A_FILE)
@@ -98,5 +110,42 @@ impl BitBoard {
             f(Square(idx));
             bb &= bb - 1; // clear least significant set bit
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BitBoard;
+
+    #[test]
+    fn test_bit_scan_on_full_board() {
+        let bb = BitBoard::FULL;
+        assert_eq!(bb.bit_scan_forward(), 0);
+        assert_eq!(bb.bit_scan_backward(), 63);
+    }
+
+    #[test]
+    fn test_bit_scan_on_empty_board() {
+        let bb = BitBoard::EMPTY;
+        assert_eq!(bb.bit_scan_forward(), 64);
+    }
+
+    #[should_panic]
+    #[test]
+    fn test_bit_scan_backward_should_panic_on_empty_board() {
+        let bb = BitBoard::EMPTY;
+        bb.bit_scan_backward();
+    }
+    #[test]
+    fn test_bit_scan_on_single_bit() {
+        let bb = BitBoard::EMPTY.set_bit(5);
+        assert_eq!(bb.bit_scan_forward(), 5);
+        assert_eq!(bb.bit_scan_backward(), 5);
+    }
+    #[test]
+    fn test_bit_scan_on_multiple_bits() {
+        let bb = BitBoard::EMPTY.set_bit(5).set_bit(50);
+        assert_eq!(bb.bit_scan_forward(), 5);
+        assert_eq!(bb.bit_scan_backward(), 50);
     }
 }
