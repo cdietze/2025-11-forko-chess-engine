@@ -56,7 +56,7 @@ impl fmt::Display for BitBoard {
                     if (*self).and(BitBoard::from_square(Square(square))) == BitBoard::EMPTY {
                         '.'
                     } else {
-                        '1'
+                        'x'
                     }
                 )?;
             }
@@ -75,5 +75,16 @@ impl fmt::Debug for BitBoard {
 impl FromIterator<Square> for BitBoard {
     fn from_iter<T: IntoIterator<Item = Square>>(iter: T) -> Self {
         BitBoard::from_squares(iter)
+    }
+}
+
+mod tests {
+    use crate::bitboard::BitBoard;
+
+    #[test]
+    fn test_print_bitboard() {
+        let v: u64 = 282579823558913;
+        let bb = BitBoard(v);
+        println!("{:?}", bb)
     }
 }

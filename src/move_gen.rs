@@ -11,19 +11,18 @@ impl BitBoard {}
 pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
 
-    let current_color_board: BitBoard = if board.white_to_move {
+    let own_color_board: BitBoard = if board.white_to_move {
         board.white
     } else {
         board.white.not()
     };
-    let other_color_board: BitBoard = current_color_board.not();
     let occupied = board.occupied();
 
     let add_king_moves = |v: &mut Vec<Move>, b: BitBoard| {
         b.for_each_set_bit(|square| {
             let moves = KING_MOVES[square.0 as usize];
             // Don't capture own pieces
-            let moves = moves.and(occupied.and(current_color_board).not());
+            let moves = moves.and(occupied.and(own_color_board).not());
             moves.for_each_set_bit(|move_square| v.push(Move::new(square, move_square)))
         });
     };
@@ -45,6 +44,11 @@ fn add_rook_moves(v: &mut Vec<Move>, board: &Board, square: u8) {
 fn rook_moves(board: &Board, square: u8) -> BitBoard {
     let rays = RAYS[square as usize];
     let occupied = board.occupied();
+    let own_color_board: BitBoard = if board.white_to_move {
+        board.white
+    } else {
+        board.white.not()
+    };
 
     // Helper: trim a ray by the first blocker in that direction, keeping the blocker square
     // Uses bit_scan_forward for directions with increasing indices (north, east)
@@ -69,14 +73,12 @@ fn rook_moves(board: &Board, square: u8) -> BitBoard {
     let east = trim(rays.east, |r| r.east, true);
     let west = trim(rays.west, |r| r.west, false);
 
-    // Combine and remove own pieces
-    let moves = north.or(south).or(east).or(west);
-    let own = if board.white_to_move {
-        board.white
-    } else {
-        board.white.not()
-    };
-    moves.and(own.not())
+    // Combine
+    let rays = north.or(south).or(east).or(west);
+    // Remove blockers of own color
+    let o = occupied.and(own_color_board).not();
+    let rays = rays.and(o);
+    rays
 }
 
 #[cfg(test)]
@@ -123,6 +125,21 @@ mod tests {
     #[test]
     fn rook_should_move_correctly_from_e4() {
         let board = Board::empty().set_piece("e4".parse().unwrap(), Piece::Rook, Color::White);
+        let moves = generate_moves(&board);
+        assert_move_sources(&moves, &["e4"]);
+        assert_move_destinations(
+            &moves,
+            &[
+                "e1", "e2", "e3", "e5", "e6", "e7", "e8", "a4", "b4", "c4", "d4", "f4", "g4", "h4",
+            ],
+        );
+    }
+
+    #[test]
+    fn black_rook_should_move_correctly_from_e4() {
+        let board = Board::empty()
+            .set_piece("e4".parse().unwrap(), Piece::Rook, Color::Black)
+            .set_color_to_move(Color::Black);
         let moves = generate_moves(&board);
         assert_move_sources(&moves, &["e4"]);
         assert_move_destinations(

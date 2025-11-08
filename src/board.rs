@@ -62,13 +62,34 @@ impl Board {
         }
     }
     pub fn do_move(&mut self, m: Move) {
-        // For now, only move the white king (matches current move generator usage)
-        let k = Piece::King.idx();
-        self.pieces[k] = self.pieces[k].clear_bit(m.from().0).set_bit(m.to().0);
+        let from = m.from().0;
+        let to = m.to().0;
+
+        let mover_color = self.color_to_move();
+
+        // Determine which piece is moving based on the source square
+        let mut moved_piece_idx: Option<usize> = None;
+        for i in 0..Piece::COUNT {
+            if self.pieces[i].is_set(from) {
+                moved_piece_idx = Some(i);
+                break;
+            }
+        }
+        assert!(moved_piece_idx.is_some(), "No piece found at source square");
+        let pi = moved_piece_idx.unwrap();
+        // Handle capture: clear any piece on destination
+        for j in 0..Piece::COUNT {
+            self.pieces[j] = self.pieces[j].clear_bit(to);
+        }
+
+        // Move the piece: set "to" and clear "from"
+        self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
+
+        // Update "white" BitBoard
         self.white = self
             .white
-            .clear_bit(m.from().0)
-            .set(m.to().0, self.color_to_move() == Color::White);
+            .clear_bit(from)
+            .set(to, mover_color == Color::White);
         self.white_to_move = !self.white_to_move;
     }
 
@@ -83,6 +104,11 @@ impl Board {
         }
         let p = piece.idx();
         self.pieces[p] = self.pieces[p].set_bit(square.0);
+        self
+    }
+
+    pub fn set_color_to_move(mut self, color: Color) -> Self {
+        self.white_to_move = color == Color::White;
         self
     }
 
@@ -115,6 +141,33 @@ impl Board {
             .unwrap_or(BitBoard(0))
     }
 
+    #[inline]
+    fn piece_at(&self, square: u8) -> Option<(Piece, Color)> {
+        if !self.occupied().is_set(square) {
+            return None;
+        }
+        let color = if self.white.is_set(square) {
+            Color::White
+        } else {
+            Color::Black
+        };
+        for i in 0..Piece::COUNT {
+            if self.pieces[i].is_set(square) {
+                let piece = match i {
+                    0 => Piece::King,
+                    1 => Piece::Queen,
+                    2 => Piece::Rook,
+                    3 => Piece::Bishop,
+                    4 => Piece::Knight,
+                    5 => Piece::Pawn,
+                    _ => unreachable!(),
+                };
+                return Some((piece, color));
+            }
+        }
+        None
+    }
+
     /// Creates an empty board with no pieces set.
     #[inline]
     pub const fn empty() -> Self {
@@ -132,15 +185,25 @@ impl std::fmt::Display for Board {
         for rank in (0..8).rev() {
             write!(f, "{} |", rank + 1)?;
             for file in 0..8 {
-                let square = rank * 8 + file;
-                let is_king = self.kings().is_set(square as u8);
-                let is_white = self.white.is_set(square as u8);
-                let piece = if is_king {
-                    if is_white { " K " } else { " k " }
+                let square = (rank * 8 + file) as u8;
+                let cell = if let Some((piece, color)) = self.piece_at(square) {
+                    let ch = match piece {
+                        Piece::King => 'K',
+                        Piece::Queen => 'Q',
+                        Piece::Rook => 'R',
+                        Piece::Bishop => 'B',
+                        Piece::Knight => 'N',
+                        Piece::Pawn => 'P',
+                    };
+                    if color == Color::White {
+                        format!(" {} ", ch)
+                    } else {
+                        format!(" {} ", ch.to_ascii_lowercase())
+                    }
                 } else {
-                    "   "
+                    "   ".to_string()
                 };
-                write!(f, "{}|", piece)?;
+                write!(f, "{}|", cell)?;
             }
             writeln!(f)?;
             writeln!(f, "  +---+---+---+---+---+---+---+---+")?;
