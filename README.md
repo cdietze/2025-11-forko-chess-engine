@@ -9,3 +9,5 @@ Install the pre-commit hooks using:
 ## Links
 
 - https://www.chessprogramming.org
+- https://github.com/MitchelPaulin/Walleye
+- https://github.com/SebLague/Chess-Coding-Adventure

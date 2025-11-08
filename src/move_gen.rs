@@ -100,6 +100,7 @@ fn rook_moves(board: &Board, square: Square) -> BitBoard {
 mod tests {
     use super::*;
     use crate::board::{Color, Piece};
+    use crate::search::find_best_move;
     use rand::prelude::IndexedRandom;
     use std::collections::BTreeSet;
 
@@ -195,16 +196,12 @@ mod tests {
     #[test]
     fn random_game_two_kings() {
         use rand::SeedableRng;
-
         let mut board = Board::empty()
             .set_piece("e1".parse().unwrap(), Piece::King, Color::White)
             .set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
-
         println!("\nInitial position:");
         println!("{}", board);
-
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-
         // Total of 10 ply moves
         for move_num in 1..=10 {
             let moves = generate_moves(&board);
@@ -220,6 +217,31 @@ mod tests {
                 board.make_move(*white_move);
                 println!("{}", board);
             }
+        }
+    }
+
+    #[test]
+    fn best_game() {
+        let mut board = Board::empty()
+            .set_piece("e1".parse().unwrap(), Piece::King, Color::White)
+            .set_piece("a1".parse().unwrap(), Piece::Rook, Color::White)
+            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
+            .set_piece("h8".parse().unwrap(), Piece::Rook, Color::Black);
+        println!("\nInitial position:");
+        println!("{}", board);
+        // Total of 10 ply moves
+        for move_num in 1..=20 {
+            let best_move =
+                find_best_move(&mut board, 2).unwrap_or_else(|| panic!("Found no move"));
+            println!(
+                "Ply {}: {} plays {} -> {}",
+                move_num,
+                board.color_to_move(),
+                best_move.from().algebraic(),
+                best_move.to().algebraic()
+            );
+            board.make_move(best_move);
+            println!("{}", board);
         }
     }
 }

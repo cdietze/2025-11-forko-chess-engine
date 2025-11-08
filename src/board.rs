@@ -51,6 +51,7 @@ impl Piece {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Board {
     /// Bitboard of all white pieces on the board, all other squares have black pieces or are empty.
     pub white: BitBoard,
