@@ -30,15 +30,24 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             tos.for_each_set_bit(|to_square| v.push(Move::new(king_square, to_square)))
         });
 
-    board
-        .pieces(Piece::Rook, board.color_to_move())
-        .for_each_set_bit(|rook_square| {
-            let moves = rook_moves(board, rook_square);
-            moves.for_each_set_bit(|move_square| {
-                v.push(Move::new(Square(rook_square.0), move_square))
-            })
-        });
+    for_each_sliding_piece(board, board.color_to_move(), |square, b| {
+        b.for_each_set_bit(|to_square| {
+            v.push(Move::new(square, to_square));
+        })
+    });
     v
+}
+
+fn for_each_sliding_piece(board: &Board, color: Color, mut f: impl FnMut(Square, BitBoard)) {
+    board
+        .pieces(Piece::Rook, color)
+        .for_each_set_bit(|square| f(square, rook_moves(board, square)));
+    board
+        .pieces(Piece::Bishop, color)
+        .for_each_set_bit(|square| f(square, bishop_moves(board, square)));
+    board
+        .pieces(Piece::Queen, color)
+        .for_each_set_bit(|square| f(square, queen_moves(board, square)));
 }
 
 fn generate_attack_map(board: &Board, color: Color) -> BitBoard {
@@ -56,7 +65,7 @@ fn generate_attack_map(board: &Board, color: Color) -> BitBoard {
     map
 }
 
-fn rook_moves(board: &Board, square: Square) -> BitBoard {
+fn sliding_moves(board: &Board, square: Square, orthogonal: bool, diagonal: bool) -> BitBoard {
     let rays = RAYS[square.0 as usize];
     let occupied = board.occupied();
     let own_color_board: BitBoard = if board.white_to_move {
@@ -82,18 +91,37 @@ fn rook_moves(board: &Board, square: Square) -> BitBoard {
         ray
     };
 
+    let mut result = BitBoard::EMPTY;
     // Compute per-direction trimmed rays
-    let north = trim(rays.north, |r| r.north, true);
-    let south = trim(rays.south, |r| r.south, false);
-    let east = trim(rays.east, |r| r.east, true);
-    let west = trim(rays.west, |r| r.west, false);
-
-    // Combine
-    let rays = north.or(south).or(east).or(west);
+    if orthogonal {
+        result = result.or(trim(rays.north, |r| r.north, true));
+        result = result.or(trim(rays.south, |r| r.south, false));
+        result = result.or(trim(rays.east, |r| r.east, true));
+        result = result.or(trim(rays.west, |r| r.west, true));
+    }
+    if diagonal {
+        result = result.or(trim(rays.north_east, |r| r.north_east, true));
+        result = result.or(trim(rays.north_west, |r| r.north_west, true));
+        result = result.or(trim(rays.south_east, |r| r.south_east, false));
+        result = result.or(trim(rays.south_west, |r| r.south_west, false));
+    }
     // Remove blockers of own color
     let o = occupied.and(own_color_board).not();
-    let rays = rays.and(o);
-    rays
+    result.and(o)
+}
+
+#[inline]
+fn rook_moves(board: &Board, square: Square) -> BitBoard {
+    sliding_moves(board, square, true, false)
+}
+
+#[inline]
+fn bishop_moves(board: &Board, square: Square) -> BitBoard {
+    sliding_moves(board, square, false, true)
+}
+#[inline]
+fn queen_moves(board: &Board, square: Square) -> BitBoard {
+    sliding_moves(board, square, true, true)
 }
 
 #[cfg(test)]

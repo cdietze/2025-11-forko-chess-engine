@@ -13,12 +13,17 @@ pub const KING_MOVES: [BitBoard; 64] = {
     arr
 };
 
-pub const RAYS: [Rays; 64] = {
+/// See https://www.chessprogramming.org/Classical_Approach
+pub static RAYS: [Rays; 64] = {
     let mut arr = [Rays {
         north: BitBoard::EMPTY,
         south: BitBoard::EMPTY,
         east: BitBoard::EMPTY,
         west: BitBoard::EMPTY,
+        north_east: BitBoard::EMPTY,
+        south_east: BitBoard::EMPTY,
+        north_west: BitBoard::EMPTY,
+        south_west: BitBoard::EMPTY,
     }; 64];
     let mut i = 0;
     while i < 64 {
@@ -34,55 +39,37 @@ pub struct Rays {
     pub south: BitBoard,
     pub east: BitBoard,
     pub west: BitBoard,
+    pub north_east: BitBoard,
+    pub south_east: BitBoard,
+    pub north_west: BitBoard,
+    pub south_west: BitBoard,
 }
 
-const fn ray_north(square: u8) -> BitBoard {
-    let mut b = BitBoard::from_square(Square(square));
-    let mut i = 0;
-    while i < 8 {
-        b = b.or(b.shift_north());
-        i += 1;
-    }
-    b
+macro_rules! ray_dir {
+    ($square:expr, $($shift:ident),+) => {{
+        let mut b = BitBoard::from_square(Square($square));
+        let mut i = 0;
+        while i < 8 {
+            b = b.or(b$(.$shift())+);
+            i += 1;
+        }
+        b
+    }};
 }
-
-const fn ray_south(square: u8) -> BitBoard {
-    let mut b = BitBoard::from_square(Square(square));
-    let mut i = 0;
-    while i < 8 {
-        b = b.or(b.shift_south());
-        i += 1;
-    }
-    b
-}
-
-const fn ray_east(square: u8) -> BitBoard {
-    let mut b = BitBoard::from_square(Square(square));
-    let mut i = 0;
-    while i < 8 {
-        b = b.or(b.shift_east());
-        i += 1;
-    }
-    b
-}
-
-const fn ray_west(square: u8) -> BitBoard {
-    let mut b = BitBoard::from_square(Square(square));
-    let mut i = 0;
-    while i < 8 {
-        b = b.or(b.shift_west());
-        i += 1;
-    }
-    b
-}
-
 const fn ray_mask(square: u8) -> Rays {
     let origin = BitBoard::from_square(Square(square));
+    fn shift_ne(b: BitBoard) -> BitBoard {
+        b.shift_north().shift_east()
+    }
     Rays {
-        north: ray_north(square).and(origin.not()),
-        south: ray_south(square).and(origin.not()),
-        east: ray_east(square).and(origin.not()),
-        west: ray_west(square).and(origin.not()),
+        north: ray_dir!(square, shift_north).and(origin.not()),
+        south: ray_dir!(square, shift_south).and(origin.not()),
+        east: ray_dir!(square, shift_east).and(origin.not()),
+        west: ray_dir!(square, shift_west).and(origin.not()),
+        north_east: ray_dir!(square, shift_north, shift_east).and(origin.not()),
+        south_east: ray_dir!(square, shift_south, shift_east).and(origin.not()),
+        north_west: ray_dir!(square, shift_north, shift_west).and(origin.not()),
+        south_west: ray_dir!(square, shift_south, shift_west).and(origin.not()),
     }
 }
 
