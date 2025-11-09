@@ -88,6 +88,10 @@ impl Move {
     pub const fn raw(self) -> u16 {
         self.0
     }
+
+    pub fn algebraic(self) -> String {
+        self.to_string()
+    }
 }
 
 /// Error type for parsing algebraic move coordinates like "e2e4".

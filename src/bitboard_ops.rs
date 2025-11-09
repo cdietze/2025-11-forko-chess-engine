@@ -43,6 +43,11 @@ impl BitBoard {
     }
 
     #[inline]
+    pub const fn is_not_empty(self) -> bool {
+        self.0 != 0
+    }
+
+    #[inline]
     pub const fn bit_scan_forward(self) -> u8 {
         self.0.trailing_zeros() as u8
     }
@@ -103,13 +108,21 @@ impl BitBoard {
     }
 
     #[inline]
-    pub fn for_each_set_bit(&self, mut f: impl FnMut(Square)) {
+    pub fn for_each_set_bit(&self, mut f: impl FnMut(Square) -> bool) -> bool {
         let mut bb = self.0;
         while bb != 0 {
             let idx = bb.trailing_zeros() as u8;
-            f(Square(idx));
+            if !f(Square(idx)) {
+                return false;
+            }
             bb &= bb - 1; // clear least significant set bit
         }
+        true
+    }
+
+    #[inline]
+    pub fn intersects(&self, other: BitBoard) -> bool {
+        (self.0 & other.0) != 0
     }
 }
 

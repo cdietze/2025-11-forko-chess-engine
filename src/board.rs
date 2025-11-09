@@ -120,6 +120,20 @@ impl Board {
         self.pieces[Piece::King as usize]
     }
 
+    pub fn own_color_board(&self) -> BitBoard {
+        if self.white_to_move {
+            self.white
+        } else {
+            self.white.not()
+        }
+    }
+    pub fn color_board(&self, color: Color) -> BitBoard {
+        match color {
+            Color::White => self.white,
+            Color::Black => self.white.not(),
+        }
+    }
+
     #[inline]
     pub fn white_kings(&self) -> BitBoard {
         self.white.and(self.kings())

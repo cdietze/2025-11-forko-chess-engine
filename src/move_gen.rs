@@ -17,7 +17,8 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     };
     let occupied = board.occupied();
 
-    let opponent_attack_map = generate_opponent_attack_map(board);
+    let king_attack_map = generate_king_attack_map(board, board.color_to_move().opposite());
+    let not_own_pieces_bb = occupied.and(own_color_board).not();
 
     board
         .pieces(Piece::King, board.color_to_move())
@@ -26,61 +27,67 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             // Don't capture own pieces
             let tos = tos.and(occupied.and(own_color_board).not());
             // Don't move into check
-            let tos = tos.and(opponent_attack_map.not());
-            tos.for_each_set_bit(|to_square| v.push(Move::new(king_square, to_square)))
+            let tos = tos.and(king_attack_map.not());
+            tos.for_each_set_bit(|to_square| {
+                v.push(Move::new(king_square, to_square));
+                true
+            })
         });
 
-    for_each_sliding_piece(board, board.color_to_move(), |square, b| {
-        b.for_each_set_bit(|to_square| {
-            v.push(Move::new(square, to_square));
-        })
-    });
+    for_each_sliding_piece(
+        board,
+        board.occupied(),
+        board.color_to_move(),
+        |square, b| {
+            b.and(not_own_pieces_bb).for_each_set_bit(|to_square| {
+                v.push(Move::new(square, to_square));
+                true
+            })
+        },
+    );
     v
 }
 
-fn for_each_sliding_piece(board: &Board, color: Color, mut f: impl FnMut(Square, BitBoard)) {
+fn for_each_sliding_piece(
+    board: &Board,
+    occupied: BitBoard,
+    color: Color,
+    mut f: impl FnMut(Square, BitBoard) -> bool,
+) -> bool {
     board
         .pieces(Piece::Rook, color)
-        .for_each_set_bit(|square| f(square, rook_moves(board, square)));
-    board
-        .pieces(Piece::Bishop, color)
-        .for_each_set_bit(|square| f(square, bishop_moves(board, square)));
-    board
-        .pieces(Piece::Queen, color)
-        .for_each_set_bit(|square| f(square, queen_moves(board, square)));
+        .for_each_set_bit(|square| f(square, rook_moves(occupied, square)))
+        && board
+            .pieces(Piece::Bishop, color)
+            .for_each_set_bit(|square| f(square, bishop_moves(occupied, square)))
+        && board
+            .pieces(Piece::Queen, color)
+            .for_each_set_bit(|square| f(square, queen_moves(occupied, square)))
 }
 
-fn generate_opponent_attack_map(board: &Board) -> BitBoard {
-    generate_attack_map(board, board.color_to_move().opposite())
-}
-/// Generates an attack map for the specified color on the given chess board.
-///
-/// This function evaluates the board state to determine all the squares that are
-/// currently being attacked by the specified color's pieces. The attack map is a
-/// `BitBoard`, where each set bit denotes a square that is under attack by the given color.
-fn generate_attack_map(board: &Board, color: Color) -> BitBoard {
+pub fn generate_king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
     let mut map = BitBoard::EMPTY;
+    // remove own king
+    let occupied = board
+        .occupied()
+        .and(board.kings().and(board.own_color_board()).not());
     board
-        .pieces(Piece::King, color)
+        .pieces(Piece::King, opposing_color)
         .for_each_set_bit(|king_square| {
             map = map.or(KING_MOVES[king_square.0 as usize]);
+            true
         });
     board
-        .pieces(Piece::Rook, color)
+        .pieces(Piece::Rook, opposing_color)
         .for_each_set_bit(|rook_square| {
-            map = map.or(rook_moves(board, rook_square));
+            map = map.or(rook_moves(occupied, rook_square));
+            true
         });
     map
 }
 
-fn sliding_moves(board: &Board, square: Square, orthogonal: bool, diagonal: bool) -> BitBoard {
+fn sliding_moves(occupied: BitBoard, square: Square, orthogonal: bool, diagonal: bool) -> BitBoard {
     let rays = RAYS[square.0 as usize];
-    let occupied = board.occupied();
-    let own_color_board: BitBoard = if board.white_to_move {
-        board.white
-    } else {
-        board.white.not()
-    };
 
     // Helper: trim a ray by the first blocker in that direction, keeping the blocker square
     // Uses bit_scan_forward for directions with increasing indices (north, east)
@@ -113,23 +120,36 @@ fn sliding_moves(board: &Board, square: Square, orthogonal: bool, diagonal: bool
         result = result.or(trim(rays.south_east, |r| r.south_east, false));
         result = result.or(trim(rays.south_west, |r| r.south_west, false));
     }
-    // Remove blockers of own color
-    let o = occupied.and(own_color_board).not();
-    result.and(o)
+    result
 }
 
 #[inline]
-fn rook_moves(board: &Board, square: Square) -> BitBoard {
-    sliding_moves(board, square, true, false)
+fn rook_moves(occupied: BitBoard, square: Square) -> BitBoard {
+    sliding_moves(occupied, square, true, false)
 }
 
 #[inline]
-fn bishop_moves(board: &Board, square: Square) -> BitBoard {
-    sliding_moves(board, square, false, true)
+fn bishop_moves(occupied: BitBoard, square: Square) -> BitBoard {
+    sliding_moves(occupied, square, false, true)
 }
 #[inline]
-fn queen_moves(board: &Board, square: Square) -> BitBoard {
-    sliding_moves(board, square, true, true)
+fn queen_moves(occupied: BitBoard, square: Square) -> BitBoard {
+    sliding_moves(occupied, square, true, true)
+}
+
+#[inline]
+fn is_attacked(board: &Board, square: Square, by_color: Color) -> bool {
+    let square_bb = BitBoard::from_square(square);
+    !board
+        .kings()
+        .and(board.color_board(by_color))
+        .for_each_set_bit(|king_square| {
+            let tos = KING_MOVES[king_square.0 as usize];
+            !tos.intersects(square_bb)
+        })
+        || !for_each_sliding_piece(board, board.occupied(), by_color, |_, b| {
+            !square_bb.intersects(b)
+        })
 }
 
 #[cfg(test)]
@@ -217,6 +237,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn should_find_no_moves_when_checkmate() {
+        let mut board = Board::empty()
+            .set_piece("e6".parse().unwrap(), Piece::King, Color::White)
+            .set_piece("a8".parse().unwrap(), Piece::Rook, Color::White)
+            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
+            .set_color_to_move(Color::Black);
+        let moves = generate_moves(&board);
+        assert_eq!(moves.len(), 0);
+    }
+
     fn assert_move_sources(moves: &[Move], expected: &[&str]) {
         let actual: BTreeSet<String> = moves.iter().map(|m| m.from().algebraic()).collect();
         let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
@@ -267,8 +298,9 @@ mod tests {
         println!("{}", board);
         // Total of 10 ply moves
         for move_num in 1..=20 {
-            let best_move =
-                find_best_move(&mut board, 2).unwrap_or_else(|| panic!("Found no move"));
+            let best_move = find_best_move(&mut board, 2)
+                .move_
+                .unwrap_or_else(|| panic!("Found no move"));
             println!(
                 "Ply {}: {} plays {} -> {}",
                 move_num,
