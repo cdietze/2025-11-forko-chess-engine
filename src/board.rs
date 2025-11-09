@@ -1,5 +1,6 @@
 use crate::bitboard::BitBoard;
 use crate::r#move::Move;
+use crate::square::Square;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -100,7 +101,7 @@ impl Board {
         todo!("implement unmake_move")
     }
 
-    pub fn set_piece(mut self, square: crate::square::Square, piece: Piece, color: Color) -> Self {
+    pub fn set_piece(mut self, square: Square, piece: Piece, color: Color) -> Self {
         match color {
             Color::White => self.white = self.white.set_bit(square.0),
             Color::Black => self.white = self.white.clear_bit(square.0),

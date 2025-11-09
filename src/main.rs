@@ -1,6 +1,7 @@
 mod bitboard;
 mod bitboard_ops;
 mod board;
+mod fen;
 mod r#move;
 mod move_gen;
 mod precomputed;
