@@ -17,7 +17,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     };
     let occupied = board.occupied();
 
-    let opponent_attack_map = generate_attack_map(board, board.color_to_move().opposite());
+    let opponent_attack_map = generate_opponent_attack_map(board);
 
     board
         .pieces(Piece::King, board.color_to_move())
@@ -50,6 +50,14 @@ fn for_each_sliding_piece(board: &Board, color: Color, mut f: impl FnMut(Square,
         .for_each_set_bit(|square| f(square, queen_moves(board, square)));
 }
 
+fn generate_opponent_attack_map(board: &Board) -> BitBoard {
+    generate_attack_map(board, board.color_to_move().opposite())
+}
+/// Generates an attack map for the specified color on the given chess board.
+///
+/// This function evaluates the board state to determine all the squares that are
+/// currently being attacked by the specified color's pieces. The attack map is a
+/// `BitBoard`, where each set bit denotes a square that is under attack by the given color.
 fn generate_attack_map(board: &Board, color: Color) -> BitBoard {
     let mut map = BitBoard::EMPTY;
     board

@@ -7,40 +7,39 @@ use crate::move_gen::generate_moves;
 struct SearchInfo {
     node_count: u64,
 }
-fn nega_max(board: &mut Board, depth: u8, info: &mut SearchInfo) -> i32 {
-    info.node_count += 1;
-    if depth == 0 {
-        return eval(board);
-    }
-    let mut max = i32::MIN;
-    let moves = generate_moves(board);
-    for m in moves {
-        let mut b = board.clone();
-        b.make_move(m);
-        let score = -nega_max(&mut b, depth - 1, info);
-        if (score > max) {
-            max = score;
-        }
-    }
-    max
-}
 
 pub fn find_best_move(board: &mut Board, depth: u8) -> Option<Move> {
     let mut info = SearchInfo { node_count: 0 };
-    let mut max = i32::MIN;
+    let (_, best_move) = nega_max_impl(board, depth, &mut info, true);
+    println!("find_best_move done: {:?}", info);
+    best_move
+}
+
+fn nega_max_impl(
+    board: &mut Board,
+    depth: u8,
+    info: &mut SearchInfo,
+    track_move: bool,
+) -> (i32, Option<Move>) {
+    info.node_count += 1;
+    if depth == 0 {
+        return (eval(board), None);
+    }
+    let mut best_score = i32::MIN;
     let mut best_move = None;
     let moves = generate_moves(board);
     for m in moves {
         let mut b = board.clone();
         b.make_move(m);
-        let score = -nega_max(&mut b, depth - 1, &mut info);
-        if (score > max) {
-            max = score;
-            best_move = Some(m);
+        let score = -nega_max_impl(&mut b, depth - 1, info, false).0;
+        if score > best_score {
+            best_score = score;
+            if track_move {
+                best_move = Some(m);
+            }
         }
     }
-    println!("find_best_move done: {:?}", info);
-    best_move
+    (best_score, best_move)
 }
 
 /// Evaluation relative to side to move.
