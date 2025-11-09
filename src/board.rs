@@ -58,7 +58,7 @@ pub struct Board {
     /// One BitBoard per piece type (color is derived via `white`).
     pub pieces: [BitBoard; Piece::COUNT],
     pub white_to_move: bool,
-    // TODO: also store: en passant possible?, castling possible?, side to move?,
+    // TODO: also store: en passant possible?, castling possible?
 }
 
 impl Board {
@@ -72,8 +72,6 @@ impl Board {
     pub fn make_move(&mut self, m: Move) {
         let from = m.from().0;
         let to = m.to().0;
-
-        let mover_color = self.color_to_move();
 
         // Determine which piece is moving based on the source square
         let mut moved_piece_idx: Option<usize> = None;
@@ -94,10 +92,7 @@ impl Board {
         self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
 
         // Update "white" BitBoard
-        self.white = self
-            .white
-            .clear_bit(from)
-            .set(to, mover_color == Color::White);
+        self.white = self.white.clear_bit(from).set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
     }
 
