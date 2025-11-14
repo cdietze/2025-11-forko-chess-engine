@@ -39,11 +39,11 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     let own_king = Square(board.kings().and(own_pieces).bit_scan_forward());
     assert!(own_king.is_valid());
 
-    let oppRQ = board.pieces[Piece::Rook.idx()]
+    let opp_rq = board.pieces[Piece::Rook.idx()]
         .or(board.pieces[Piece::Queen.idx()])
         .and(opp_pieces);
 
-    let pinned = pinned(own_king, occupied, own_pieces, oppRQ);
+    let pinned = pinned(own_king, occupied, own_pieces, opp_rq);
     // println!("pinned:\n{:?}", pinned);
     let king_attack_map = generate_king_attack_map(board, board.color_to_move().opposite());
     let not_own_pieces_bb = occupied.and(own_pieces).not();
@@ -74,7 +74,7 @@ fn gen_rook_moves(board: &Board, own_king: Square, pinned: BitBoard, v: &mut Vec
             let mut tos = rook_attacks(rook_square, occupied);
             tos = tos.and(not_own_pieces_bb);
             if pinned.has_square(rook_square) {
-                tos = tos.and(lineBB(own_king, rook_square))
+                tos = tos.and(line_bb(own_king, rook_square))
             }
             println!(
                 "#gen_rook_moves, rook_square {:?}, tos:\n{:?}",
@@ -113,7 +113,7 @@ fn xray_rook(rook_square: Square, occ: BitBoard, blockers: BitBoard) -> BitBoard
 /// an empty `BitBoard` is returned, as there are no obstructed squares along the line between the
 /// two points.
 /// TODO: precompute in 2d array
-fn betweenBB(from: Square, to: Square) -> BitBoard {
+fn between_bb(from: Square, to: Square) -> BitBoard {
     // Use same alignment logic as lineBB to keep things DRY
     if from.0 == to.0 {
         return BitBoard::EMPTY;
@@ -145,11 +145,11 @@ fn betweenBB(from: Square, to: Square) -> BitBoard {
     bb
 }
 
-fn pinned(king_square: Square, occ: BitBoard, own_pieces: BitBoard, oppRQ: BitBoard) -> BitBoard {
+fn pinned(king_square: Square, occ: BitBoard, own_pieces: BitBoard, opp_rq: BitBoard) -> BitBoard {
     let mut pinned = BitBoard::EMPTY;
-    let pinners = xray_rook(king_square, occ, own_pieces).and(oppRQ);
+    let pinners = xray_rook(king_square, occ, own_pieces).and(opp_rq);
     pinners.for_each_set_bit(|square| {
-        let p = betweenBB(king_square, square).and(own_pieces);
+        let p = between_bb(king_square, square).and(own_pieces);
         pinned = pinned.or(p);
         true
     });
@@ -161,7 +161,7 @@ fn pinned(king_square: Square, occ: BitBoard, own_pieces: BitBoard, oppRQ: BitBo
 /// Otherwise the result contains all 8 squares of the line, rank, diagonal or anti diagonal on which
 /// `from` and `to` lie.
 /// TODO: precompute in 2d array
-fn lineBB(from: Square, to: Square) -> BitBoard {
+fn line_bb(from: Square, to: Square) -> BitBoard {
     // Determine alignment type first to avoid branching duplication
     let dir = get_dir(from, to);
     let Some(dir) = dir else {
