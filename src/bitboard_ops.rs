@@ -124,6 +124,11 @@ impl BitBoard {
     pub fn intersects(&self, other: BitBoard) -> bool {
         (self.0 & other.0) != 0
     }
+
+    #[inline]
+    pub fn has_square(&self, sq: Square) -> bool {
+        self.is_set(sq.0)
+    }
 }
 
 #[cfg(test)]

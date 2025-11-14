@@ -8,6 +8,18 @@ impl Square {
     pub fn algebraic(&self) -> String {
         format!("{}", self)
     }
+    pub fn file(&self) -> u8 {
+        self.0 % 8
+    }
+    pub fn rank(&self) -> u8 {
+        self.0 / 8
+    }
+    pub fn is_valid(&self) -> bool {
+        self.0 < 64
+    }
+    pub fn from_file_rank(file: u8, rank: u8) -> Square {
+        Square(rank * 8 + file)
+    }
 }
 
 impl core::fmt::Display for Square {

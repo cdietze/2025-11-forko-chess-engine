@@ -33,6 +33,32 @@ pub static RAYS: [Rays; 64] = {
     arr
 };
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Dir8 {
+    North,
+    South,
+    East,
+    West,
+    NorthEast,
+    SouthEast,
+    NorthWest,
+    SouthWest,
+}
+impl Dir8 {
+    pub const COUNT: usize = 8;
+}
+
+pub static RAYS2: [[BitBoard; Dir8::COUNT]; 64] = {
+    let mut arr = [[BitBoard::EMPTY; Dir8::COUNT]; 64];
+    let mut i = 0;
+    while i < 64 {
+        arr[i] = ray_mask2(i as u8);
+        i += 1;
+    }
+    arr
+};
+
 #[derive(Copy, Clone)]
 pub struct Rays {
     pub north: BitBoard,
@@ -56,11 +82,23 @@ macro_rules! ray_dir {
         b
     }};
 }
+
+const fn ray_mask2(square: u8) -> [BitBoard; Dir8::COUNT] {
+    let origin = BitBoard::from_square(Square(square));
+    [
+        ray_dir!(square, shift_north).and(origin.not()),
+        ray_dir!(square, shift_south).and(origin.not()),
+        ray_dir!(square, shift_east).and(origin.not()),
+        ray_dir!(square, shift_west).and(origin.not()),
+        ray_dir!(square, shift_north, shift_east).and(origin.not()),
+        ray_dir!(square, shift_south, shift_east).and(origin.not()),
+        ray_dir!(square, shift_north, shift_west).and(origin.not()),
+        ray_dir!(square, shift_south, shift_west).and(origin.not()),
+    ]
+}
+
 const fn ray_mask(square: u8) -> Rays {
     let origin = BitBoard::from_square(Square(square));
-    fn shift_ne(b: BitBoard) -> BitBoard {
-        b.shift_north().shift_east()
-    }
     Rays {
         north: ray_dir!(square, shift_north).and(origin.not()),
         south: ray_dir!(square, shift_south).and(origin.not()),
