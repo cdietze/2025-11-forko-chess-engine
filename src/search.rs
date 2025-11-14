@@ -55,7 +55,7 @@ fn nega_max_impl(
         }
     }
     for m in moves {
-        let mut b = board.clone();
+        let mut b = *board;
         b.make_move(m);
         let score = -nega_max_impl(&mut b, depth - 1, info, false).0;
         if score > best_score {
@@ -79,7 +79,7 @@ fn eval(board: &Board) -> i32 {
     score += piece_diff(Bishop) * 350;
     score += piece_diff(Rook) * 500;
     score += piece_diff(Queen) * 900;
-    score * if (board.white_to_move) { 1 } else { -1 }
+    score * if board.white_to_move { 1 } else { -1 }
 }
 
 mod tests {

@@ -31,8 +31,8 @@ impl Square {
 impl core::fmt::Display for Square {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let idx = self.0;
-        let file = (idx % 8) as u8;
-        let rank = (idx / 8) as u8;
+        let file = (idx % 8);
+        let rank = (idx / 8);
         let file_char = (b'a' + file) as char;
         let rank_char = (b'1' + rank) as char;
         write!(f, "{}{}", file_char, rank_char)

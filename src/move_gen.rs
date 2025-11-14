@@ -186,7 +186,7 @@ fn line_bb(from: Square, to: Square) -> BitBoard {
 
     // Walk forward to the opposite edge collecting all squares
     let mut bb = BitBoard::EMPTY;
-    while f >= 0 && f < 8 && r >= 0 && r < 8 {
+    while (0..8).contains(&f) && (0..8).contains(&r) {
         bb = bb.set_bit(Square::from_file_rank(f as u8, r as u8).0);
         f += df;
         r += dr;
