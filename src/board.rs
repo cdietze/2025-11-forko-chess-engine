@@ -46,6 +46,15 @@ pub enum Piece {
 
 impl Piece {
     pub const COUNT: usize = 6;
+
+    pub const ALL: [Piece; Piece::COUNT] = [
+        Piece::King,
+        Piece::Queen,
+        Piece::Rook,
+        Piece::Bishop,
+        Piece::Knight,
+        Piece::Pawn,
+    ];
     #[inline]
     pub const fn idx(self) -> usize {
         self as usize

@@ -1,7 +1,7 @@
 use crate::bitboard::BitBoard;
 use crate::board::{Board, Color, Piece};
 use crate::r#move::Move;
-use crate::precomputed::{Dir8, KING_MOVES, RAYS, RAYS2, Rays};
+use crate::precomputed::{Dir8, KING_MOVES, RAYS};
 use crate::square::Square;
 
 enum Dir4 {
@@ -9,6 +9,16 @@ enum Dir4 {
     File,
     Diagonal,
     AntiDiagonal,
+}
+impl Dir4 {
+    pub const COUNT: usize = 4;
+
+    pub const ALL: [Dir4; Dir4::COUNT] =
+        [Dir4::Rank, Dir4::File, Dir4::Diagonal, Dir4::AntiDiagonal];
+    #[inline]
+    pub const fn idx(self) -> usize {
+        self as usize
+    }
 }
 
 impl BitBoard {}
@@ -224,83 +234,31 @@ pub fn generate_king_attack_map(board: &Board, opposing_color: Color) -> BitBoar
     board
         .pieces(Piece::Rook, opposing_color)
         .for_each_set_bit(|rook_square| {
-            map = map.or(rook_moves(occupied, rook_square));
+            map = map.or(rook_attacks(rook_square, occupied));
             true
         });
     map
 }
 
 fn postive_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
-    let attacks = RAYS2[square.0 as usize][ray as usize];
+    let attacks = RAYS[square.0 as usize][ray as usize];
     let blocker = occ.and(attacks);
     if blocker.is_not_empty() {
         let b = blocker.bit_scan_forward();
-        return attacks.xor(RAYS2[b as usize][ray as usize]);
+        return attacks.xor(RAYS[b as usize][ray as usize]);
     }
     attacks
 }
 
 fn negative_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
-    let attacks = RAYS2[square.0 as usize][ray as usize];
+    let attacks = RAYS[square.0 as usize][ray as usize];
     let blocker = occ.and(attacks);
     if blocker.is_not_empty() {
         let b = blocker.bit_scan_backward();
-        return attacks.xor(RAYS2[b as usize][ray as usize]);
+        return attacks.xor(RAYS[b as usize][ray as usize]);
     }
     attacks
 }
-
-fn sliding_moves(occupied: BitBoard, square: Square, orthogonal: bool, diagonal: bool) -> BitBoard {
-    let rays = RAYS[square.0 as usize];
-
-    // Helper: trim a ray by the first blocker in that direction, keeping the blocker square
-    // Uses bit_scan_forward for directions with increasing indices (north, east)
-    // and bit_scan_backward for decreasing indices (south, west).
-    let mut trim = |mut ray: BitBoard, dir: fn(&Rays) -> BitBoard, forward: bool| -> BitBoard {
-        let blockers = ray.and(occupied);
-        if !blockers.is_empty() {
-            let b = if forward {
-                blockers.bit_scan_forward()
-            } else {
-                blockers.bit_scan_backward()
-            };
-            let mask_beyond = dir(&RAYS[b as usize]);
-            ray = ray.and(mask_beyond.not());
-        }
-        ray
-    };
-
-    let mut result = BitBoard::EMPTY;
-    // Compute per-direction trimmed rays
-    if orthogonal {
-        result = result.or(trim(rays.north, |r| r.north, true));
-        result = result.or(trim(rays.south, |r| r.south, false));
-        result = result.or(trim(rays.east, |r| r.east, true));
-        result = result.or(trim(rays.west, |r| r.west, true));
-    }
-    if diagonal {
-        result = result.or(trim(rays.north_east, |r| r.north_east, true));
-        result = result.or(trim(rays.north_west, |r| r.north_west, true));
-        result = result.or(trim(rays.south_east, |r| r.south_east, false));
-        result = result.or(trim(rays.south_west, |r| r.south_west, false));
-    }
-    result
-}
-
-#[inline]
-fn rook_moves(occupied: BitBoard, square: Square) -> BitBoard {
-    sliding_moves(occupied, square, true, false)
-}
-
-#[inline]
-fn bishop_moves(occupied: BitBoard, square: Square) -> BitBoard {
-    sliding_moves(occupied, square, false, true)
-}
-#[inline]
-fn queen_moves(occupied: BitBoard, square: Square) -> BitBoard {
-    sliding_moves(occupied, square, true, true)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

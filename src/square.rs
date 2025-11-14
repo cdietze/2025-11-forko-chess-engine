@@ -18,6 +18,12 @@ impl Square {
         self.0 < 64
     }
     pub fn from_file_rank(file: u8, rank: u8) -> Square {
+        debug_assert!(
+            file < 8 && rank < 8,
+            "invalid square coordinates ({}, {})",
+            file,
+            rank
+        );
         Square(rank * 8 + file)
     }
 }
@@ -55,13 +61,7 @@ impl core::fmt::Display for ParseSquareError {
 impl FromStr for Square {
     type Err = ParseSquareError;
 
-    /**
-    Converts given algebraic notation into a Square.
-    E.g.
-    "a1" -> Square(0)
-    "b1" -> Square(1)
-    "h8" -> Square(63)
-    */
+    /// Converts algebraic notation ("a1", "b1", ... "h8") into a `Square` (0, 1, ... 63).
     fn from_str(coords: &str) -> Result<Self, Self::Err> {
         let b = coords.as_bytes();
         if b.len() != 2 {
