@@ -96,7 +96,16 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             &mut v,
         )
     } else if num_checks > 1 {
-        todo!("Implement special move generation for double check")
+        let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
+        // In double check, only king moves to safe squares are possible
+        add_king_moves(
+            AddKingMovesProps {
+                king_square: own_king,
+                to_mask: not_own_pieces_bb,
+                king_attack_map,
+            },
+            &mut v,
+        );
     }
     v
 }
@@ -461,6 +470,14 @@ mod tests {
         let board = Board::from_fen("7k/8/8/8/1RR5/8/8/K1r3R1 w - - 0 1");
         let moves = generate_moves(&board);
         let expected = move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]);
+        assert_eq_unordered(&moves, &expected);
+    }
+
+    #[test]
+    fn should_solve_double_check_position() {
+        let board = Board::from_fen("7k/3r2R1/8/8/5R2/8/8/3K2r1 w - - 0 1");
+        let moves = generate_moves(&board);
+        let expected = move_list(&["d1c2", "d1e2"]);
         assert_eq_unordered(&moves, &expected);
     }
 
