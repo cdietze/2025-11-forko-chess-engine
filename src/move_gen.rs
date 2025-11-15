@@ -74,7 +74,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     } else if num_checks == 1 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         let checking_piece = attacks_to_king.bit_scan_forward();
-        let attack_line_bb = line_bb(own_king, Square(checking_piece));
+        let attack_line_bb = between_bb(own_king, Square(checking_piece));
         // King moves to safe square
         add_king_moves(
             AddKingMovesProps {
@@ -109,23 +109,10 @@ struct AddKingMovesProps {
 
 fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     let tos = KING_MOVES[props.king_square.0 as usize];
-    println!(
-        "#gen_king_moves A, king_square {:?}, tos:\n{:?}",
-        props.king_square, tos
-    );
-    println!("#gen_king_moves A, to_mask\n{:?}", props.to_mask);
     // Don't capture own pieces
     let tos = tos.and(props.to_mask);
-    println!(
-        "#gen_king_moves B, king_square {:?}, tos:\n{:?}",
-        props.king_square, tos
-    );
     // Don't move into check
     let tos = tos.and(props.king_attack_map.not());
-    println!(
-        "#gen_king_moves C, king_square {:?}, tos:\n{:?}",
-        props.king_square, tos
-    );
     tos.for_each_set_bit(|to_square| {
         v.push(Move::new(props.king_square, to_square));
         true
@@ -141,18 +128,12 @@ struct AddRookMovesProps {
 }
 fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
     let occupied = props.occupied;
-    // let occupied = board.occupied();
-    // let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
     props.rooks.for_each_set_bit(|rook_square| {
         let mut tos = rook_attacks(rook_square, occupied);
         tos = tos.and(props.to_mask);
         if props.pinned.has_square(rook_square) {
             tos = tos.and(line_bb(props.king_square, rook_square))
         }
-        println!(
-            "#gen_rook_moves, rook_square {:?}, tos:\n{:?}",
-            rook_square, tos
-        );
         tos.for_each_set_bit(|to_square| {
             v.push(Move::new(rook_square, to_square));
             true
@@ -473,6 +454,13 @@ mod tests {
         let board = Board::from_fen("7k/8/8/8/8/8/1R6/K1r5 w - - 0 1");
         let moves = generate_moves(&board);
         let expected = move_list(&["a1a2", "b2b1"]);
+        assert_eq_unordered(&moves, &expected);
+    }
+    #[test]
+    fn should_solve_king_check_position() {
+        let board = Board::from_fen("7k/8/8/8/1RR5/8/8/K1r3R1 w - - 0 1");
+        let moves = generate_moves(&board);
+        let expected = move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]);
         assert_eq_unordered(&moves, &expected);
     }
 
