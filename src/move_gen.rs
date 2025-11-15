@@ -52,16 +52,15 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     let num_checks = attacks_to_king.0.count_ones();
     println!("#generate_moves, attacks_to_king:\n{:?}", attacks_to_king);
     if num_checks == 0 {
+        let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
-                occupied,
-                own_pieces,
+                to_mask: not_own_pieces_bb,
                 king_attack_map,
             },
             &mut v,
         );
-        let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_rook_moves(
             AddRookMovesProps {
                 rooks: board.pieces(Piece::Rook, board.color_to_move()),
@@ -73,28 +72,29 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             &mut v,
         );
     } else if num_checks == 1 {
+        let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
+        let checking_piece = attacks_to_king.bit_scan_forward();
+        let attack_line_bb = line_bb(own_king, Square(checking_piece));
         // King moves to safe square
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
-                occupied,
-                own_pieces,
+                to_mask: not_own_pieces_bb,
                 king_attack_map,
             },
             &mut v,
         );
-        // Capture the checking piece
+        // Capture the checking piece or block the checking piece
         add_rook_moves(
             AddRookMovesProps {
                 rooks: board.pieces(Piece::Rook, board.color_to_move()),
                 king_square: own_king,
                 occupied,
                 pinned,
-                to_mask: attacks_to_king,
+                to_mask: attacks_to_king.or(attack_line_bb),
             },
             &mut v,
         )
-        // Block the checking piece
     } else if num_checks > 1 {
         todo!("Implement special move generation for double check")
     }
@@ -103,17 +103,29 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
 
 struct AddKingMovesProps {
     king_square: Square,
-    occupied: BitBoard,
-    own_pieces: BitBoard,
+    to_mask: BitBoard,
     king_attack_map: BitBoard,
 }
 
 fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     let tos = KING_MOVES[props.king_square.0 as usize];
+    println!(
+        "#gen_king_moves A, king_square {:?}, tos:\n{:?}",
+        props.king_square, tos
+    );
+    println!("#gen_king_moves A, to_mask\n{:?}", props.to_mask);
     // Don't capture own pieces
-    let tos = tos.and(props.occupied.and(props.own_pieces).not());
+    let tos = tos.and(props.to_mask);
+    println!(
+        "#gen_king_moves B, king_square {:?}, tos:\n{:?}",
+        props.king_square, tos
+    );
     // Don't move into check
     let tos = tos.and(props.king_attack_map.not());
+    println!(
+        "#gen_king_moves C, king_square {:?}, tos:\n{:?}",
+        props.king_square, tos
+    );
     tos.for_each_set_bit(|to_square| {
         v.push(Move::new(props.king_square, to_square));
         true
@@ -280,6 +292,7 @@ fn get_dir(from: Square, to: Square) -> Option<Dir4> {
     None
 }
 
+/// Returns a `BitBoard` containing all squares where the king would be attacked.
 pub fn generate_king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
     let mut map = BitBoard::EMPTY;
     // remove own king
@@ -301,6 +314,7 @@ pub fn generate_king_attack_map(board: &Board, opposing_color: Color) -> BitBoar
     map
 }
 
+/// Returns a `BitBoard` containing all pieces currently attacking the king.
 pub fn attacks_to_king(board: &Board) -> BitBoard {
     let king = board
         .kings()
@@ -309,7 +323,7 @@ pub fn attacks_to_king(board: &Board) -> BitBoard {
     let occupied = board.occupied();
     let rook_attackers = rook_attacks(Square(king), occupied)
         .and(board.pieces(Piece::Rook, board.color_to_move().opposite()));
-    return rook_attackers;
+    rook_attackers
 }
 
 fn postive_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
@@ -452,6 +466,13 @@ mod tests {
         let board = Board::from_fen("7k/8/8/8/1R6/8/8/Kr6 w - - 0 1");
         let moves = generate_moves(&board);
         let expected = move_list(&["a1a2", "a1b1", "b4b1"]);
+        assert_eq_unordered(&moves, &expected);
+    }
+    #[test]
+    fn when_in_check_should_block() {
+        let board = Board::from_fen("7k/8/8/8/8/8/1R6/K1r5 w - - 0 1");
+        let moves = generate_moves(&board);
+        let expected = move_list(&["a1a2", "b2b1"]);
         assert_eq_unordered(&moves, &expected);
     }
 
