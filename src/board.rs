@@ -72,6 +72,7 @@ pub struct Board {
 }
 
 impl Board {
+    #[inline]
     pub fn color_to_move(&self) -> Color {
         if self.white_to_move {
             Color::White

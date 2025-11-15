@@ -9,6 +9,7 @@ mod move_gen;
 mod precomputed;
 mod search;
 mod square;
+mod util;
 
 fn main() {
     println!("Hello, world!");

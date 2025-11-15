@@ -36,7 +36,8 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     let occupied = board.occupied();
     // println!("#generate_moves, occupied:\n{:?}", occupied);
     // println!("#generate_moves, own_pieces:\n{:?}", own_pieces);
-    let own_king = Square(board.kings().and(own_pieces).bit_scan_forward());
+    let own_king_bb = board.kings().and(own_pieces);
+    let own_king = Square(own_king_bb.bit_scan_forward());
     assert!(own_king.is_valid());
 
     let opp_rq = board.pieces[Piece::Rook.idx()]
@@ -46,46 +47,106 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     let pinned = pinned(own_king, occupied, own_pieces, opp_rq);
     // println!("pinned:\n{:?}", pinned);
     let king_attack_map = generate_king_attack_map(board, board.color_to_move().opposite());
-    let not_own_pieces_bb = occupied.and(own_pieces).not();
-
-    board
-        .pieces(Piece::King, board.color_to_move())
-        .for_each_set_bit(|king_square| {
-            let tos = KING_MOVES[king_square.0 as usize];
-            // Don't capture own pieces
-            let tos = tos.and(occupied.and(own_pieces).not());
-            // Don't move into check
-            let tos = tos.and(king_attack_map.not());
-            tos.for_each_set_bit(|to_square| {
-                v.push(Move::new(king_square, to_square));
-                true
-            })
-        });
-    gen_rook_moves(board, own_king, pinned, &mut v);
+    println!("#generate_moves, king_attack_map:\n{:?}", king_attack_map);
+    let attacks_to_king = attacks_to_king(board);
+    let num_checks = attacks_to_king.0.count_ones();
+    println!("#generate_moves, attacks_to_king:\n{:?}", attacks_to_king);
+    if num_checks == 0 {
+        add_king_moves(
+            AddKingMovesProps {
+                king_square: own_king,
+                occupied,
+                own_pieces,
+                king_attack_map,
+            },
+            &mut v,
+        );
+        let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
+        add_rook_moves(
+            AddRookMovesProps {
+                rooks: board.pieces(Piece::Rook, board.color_to_move()),
+                king_square: own_king,
+                occupied,
+                pinned,
+                to_mask: not_own_pieces_bb,
+            },
+            &mut v,
+        );
+    } else if num_checks == 1 {
+        // King moves to safe square
+        add_king_moves(
+            AddKingMovesProps {
+                king_square: own_king,
+                occupied,
+                own_pieces,
+                king_attack_map,
+            },
+            &mut v,
+        );
+        // Capture the checking piece
+        add_rook_moves(
+            AddRookMovesProps {
+                rooks: board.pieces(Piece::Rook, board.color_to_move()),
+                king_square: own_king,
+                occupied,
+                pinned,
+                to_mask: attacks_to_king,
+            },
+            &mut v,
+        )
+        // Block the checking piece
+    } else if num_checks > 1 {
+        todo!("Implement special move generation for double check")
+    }
     v
 }
 
-fn gen_rook_moves(board: &Board, own_king: Square, pinned: BitBoard, v: &mut Vec<Move>) {
-    let occupied = board.occupied();
-    let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
-    board
-        .pieces(Piece::Rook, board.color_to_move())
-        .for_each_set_bit(|rook_square| {
-            let mut tos = rook_attacks(rook_square, occupied);
-            tos = tos.and(not_own_pieces_bb);
-            if pinned.has_square(rook_square) {
-                tos = tos.and(line_bb(own_king, rook_square))
-            }
-            println!(
-                "#gen_rook_moves, rook_square {:?}, tos:\n{:?}",
-                rook_square, tos
-            );
-            tos.for_each_set_bit(|to_square| {
-                v.push(Move::new(rook_square, to_square));
-                true
-            });
+struct AddKingMovesProps {
+    king_square: Square,
+    occupied: BitBoard,
+    own_pieces: BitBoard,
+    king_attack_map: BitBoard,
+}
+
+fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
+    let tos = KING_MOVES[props.king_square.0 as usize];
+    // Don't capture own pieces
+    let tos = tos.and(props.occupied.and(props.own_pieces).not());
+    // Don't move into check
+    let tos = tos.and(props.king_attack_map.not());
+    tos.for_each_set_bit(|to_square| {
+        v.push(Move::new(props.king_square, to_square));
+        true
+    });
+}
+
+struct AddRookMovesProps {
+    rooks: BitBoard,
+    king_square: Square,
+    occupied: BitBoard,
+    pinned: BitBoard,
+    to_mask: BitBoard,
+}
+fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
+    let occupied = props.occupied;
+    // let occupied = board.occupied();
+    // let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
+    props.rooks.for_each_set_bit(|rook_square| {
+        let mut tos = rook_attacks(rook_square, occupied);
+        tos = tos.and(props.to_mask);
+        if props.pinned.has_square(rook_square) {
+            tos = tos.and(line_bb(props.king_square, rook_square))
+        }
+        println!(
+            "#gen_rook_moves, rook_square {:?}, tos:\n{:?}",
+            rook_square, tos
+        );
+        tos.for_each_set_bit(|to_square| {
+            v.push(Move::new(rook_square, to_square));
             true
         });
+        true
+    });
 }
 
 fn rook_attacks(rook_square: Square, occ: BitBoard) -> BitBoard {
@@ -240,6 +301,17 @@ pub fn generate_king_attack_map(board: &Board, opposing_color: Color) -> BitBoar
     map
 }
 
+pub fn attacks_to_king(board: &Board) -> BitBoard {
+    let king = board
+        .kings()
+        .and(board.own_color_board())
+        .bit_scan_forward();
+    let occupied = board.occupied();
+    let rook_attackers = rook_attacks(Square(king), occupied)
+        .and(board.pieces(Piece::Rook, board.color_to_move().opposite()));
+    return rook_attackers;
+}
+
 fn postive_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
     let attacks = RAYS[square.0 as usize][ray as usize];
     let blocker = occ.and(attacks);
@@ -262,12 +334,20 @@ fn negative_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::*;
     use crate::board::{Color, Piece};
     use crate::search::find_best_move;
+    use crate::util::assert_eq_unordered;
     use rand::prelude::IndexedRandom;
     use std::collections::BTreeSet;
     use std::str::FromStr;
 
+    fn move_list(list: &[&str]) -> Vec<Move> {
+        list.iter()
+            .copied()
+            .map(|m| m.parse::<Move>().unwrap())
+            .collect()
+    }
     #[test]
     fn xray_rook_should_be_correct() {
         let blockers = BitBoard::try_from_coords(["a3", "a6"]).unwrap();
@@ -363,8 +443,16 @@ mod tests {
     fn should_not_move_pinned_rook_and_leave_king_in_check() {
         let board = Board::from_fen("8/8/8/8/8/8/5kr1/5rRK w - - 0 1");
         let moves = generate_moves(&board);
-        let expected = vec![Move::from_str("g1f1").unwrap()];
+        let expected = move_list(&["g1f1"]);
         assert_eq!(moves, expected, "unexpected moves: {:?}", moves);
+    }
+
+    #[test]
+    fn when_in_check_should_evade() {
+        let board = Board::from_fen("7k/8/8/8/1R6/8/8/Kr6 w - - 0 1");
+        let moves = generate_moves(&board);
+        let expected = move_list(&["a1a2", "a1b1", "b4b1"]);
+        assert_eq_unordered(&moves, &expected);
     }
 
     #[test]

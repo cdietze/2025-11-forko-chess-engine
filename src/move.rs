@@ -25,7 +25,7 @@ use crate::square::Square;
 /// ```
 
 #[repr(transparent)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Move(u16);
 
 impl Move {
