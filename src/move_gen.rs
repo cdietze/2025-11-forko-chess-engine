@@ -45,12 +45,9 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         .and(opp_pieces);
 
     let pinned = pinned(own_king, occupied, own_pieces, opp_rq);
-    // println!("pinned:\n{:?}", pinned);
     let king_attack_map = generate_king_attack_map(board, board.color_to_move().opposite());
-    println!("#generate_moves, king_attack_map:\n{:?}", king_attack_map);
     let attacks_to_king = attacks_to_king(board);
     let num_checks = attacks_to_king.0.count_ones();
-    println!("#generate_moves, attacks_to_king:\n{:?}", attacks_to_king);
     if num_checks == 0 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_king_moves(
