@@ -2,13 +2,23 @@ use crate::board::Board;
 use crate::eval::eval;
 use crate::r#move::Move;
 use crate::move_gen::{generate_king_attack_map, generate_moves};
+use crate::util::with_separator;
 
-const CHECKMATE_SCORE: i32 = -1000000;
+const CHECKMATE_SCORE: i32 = -1_000_000;
 const STALEMATE_SCORE: i32 = 0;
 
-#[derive(Debug)]
 struct SearchInfo {
     node_count: u64,
+}
+
+impl std::fmt::Debug for SearchInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SearchInfo {{ node_count: {} }}",
+            with_separator(self.node_count as i32)
+        )
+    }
 }
 
 pub struct SearchResult {
@@ -49,7 +59,7 @@ fn nega_max_impl(
             .and(board.kings().and(board.own_color_board()))
             .is_not_empty()
         {
-            return (CHECKMATE_SCORE, None);
+            return (CHECKMATE_SCORE - depth as i32, None);
         } else {
             return (STALEMATE_SCORE, None);
         }
@@ -92,6 +102,6 @@ mod tests {
             .set_piece("b1".parse().unwrap(), Piece::Rook, Color::White)
             .set_piece("a8".parse().unwrap(), Piece::King, Color::Black);
         let result = super::find_best_move(&mut board, 4);
-        assert_eq!(result.score, -CHECKMATE_SCORE);
+        assert!(result.score >= -CHECKMATE_SCORE);
     }
 }

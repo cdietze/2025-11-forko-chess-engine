@@ -60,6 +60,66 @@ impl Board {
 
         board
     }
+
+    /// Convert the current board position to a FEN string.
+    ///
+    /// Notes:
+    /// - We emit piece placement and active color.
+    /// - Castling availability, en passant square, halfmove clock and fullmove number
+    ///   are not tracked in this engine yet, so we output "- - 0 1" for those fields.
+    pub fn to_fen(&self) -> String {
+        // Build piece placement from rank 8 to 1, files a to h
+        let mut ranks: Vec<String> = Vec::with_capacity(8);
+        for rank in (0..8).rev() {
+            let mut rank_str = String::new();
+            let mut empty_run = 0u8;
+            for file in 0..8u8 {
+                let idx = (rank * 8 + file as i32) as u8;
+                // Is the square occupied?
+                let occupied = self.occupied().is_set(idx);
+                if !occupied {
+                    empty_run += 1;
+                    continue;
+                }
+                // Flush any pending empties
+                if empty_run > 0 {
+                    rank_str.push(char::from(b'0' + empty_run));
+                    empty_run = 0;
+                }
+
+                // Determine color
+                let is_white = self.white.is_set(idx);
+                // Determine piece by scanning piece bitboards
+                let mut ch = '?';
+                for i in 0..Piece::COUNT {
+                    if self.pieces[i].is_set(idx) {
+                        ch = match i {
+                            0 => 'k',
+                            1 => 'q',
+                            2 => 'r',
+                            3 => 'b',
+                            4 => 'n',
+                            5 => 'p',
+                            _ => unreachable!(),
+                        };
+                        break;
+                    }
+                }
+                if is_white {
+                    ch = ch.to_ascii_uppercase();
+                }
+                rank_str.push(ch);
+            }
+            if empty_run > 0 {
+                rank_str.push(char::from(b'0' + empty_run));
+            }
+            ranks.push(rank_str);
+        }
+
+        let placement = ranks.join("/");
+        let active = if self.white_to_move { "w" } else { "b" };
+        format!("{} {} - - 0 1", placement, active)
+    }
 }
 
 mod tests {
@@ -74,5 +134,19 @@ mod tests {
             board.white_kings(),
             BitBoard::try_from_coords(["h1"]).unwrap()
         );
+    }
+
+    #[test]
+    fn test_to_fen_kings_only() {
+        let fen = "k7/8/8/8/8/8/8/7K w - - 0 1";
+        let board = Board::from_fen(fen);
+        assert_eq!(board.to_fen(), fen);
+    }
+
+    #[test]
+    fn test_to_fen_black_to_move() {
+        let fen = "k7/8/8/8/8/8/8/7K b - - 0 1";
+        let board = Board::from_fen(fen);
+        assert_eq!(board.to_fen(), fen);
     }
 }

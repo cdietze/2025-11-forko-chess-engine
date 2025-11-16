@@ -237,11 +237,6 @@ impl std::fmt::Display for Board {
             writeln!(f, "  +---+---+---+---+---+---+---+---+")?;
         }
         writeln!(f, "    a   b   c   d   e   f   g   h")?;
-        writeln!(
-            f,
-            "Side to move: {}",
-            if self.white_to_move { "White" } else { "Black" }
-        )?;
         Ok(())
     }
 }
