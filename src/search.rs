@@ -1,5 +1,5 @@
-use crate::board::Piece::{Bishop, Knight, Pawn, Queen, Rook};
-use crate::board::{Board, Piece};
+use crate::board::Board;
+use crate::eval::eval;
 use crate::r#move::Move;
 use crate::move_gen::{generate_king_attack_map, generate_moves};
 
@@ -69,18 +69,7 @@ fn nega_max_impl(
 }
 
 /// Evaluation relative to side to move.
-fn eval(board: &Board) -> i32 {
-    let piece_diff = |p: Piece| -> i32 {
-        let p = board.pieces[p.idx()];
-        p.and(board.white).0.count_ones() as i32 - p.and(board.white.not()).0.count_ones() as i32
-    };
-    let mut score = piece_diff(Pawn) * 100;
-    score += piece_diff(Knight) * 300;
-    score += piece_diff(Bishop) * 350;
-    score += piece_diff(Rook) * 500;
-    score += piece_diff(Queen) * 900;
-    score * if board.white_to_move { 1 } else { -1 }
-}
+// eval function now provided by crate::eval::eval
 
 mod tests {
     use crate::board::{Board, Color, Piece};

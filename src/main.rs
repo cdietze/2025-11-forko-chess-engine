@@ -3,6 +3,7 @@ use crate::board::{Board, Color, Piece};
 mod bitboard;
 mod bitboard_ops;
 mod board;
+mod eval;
 mod fen;
 mod r#move;
 mod move_gen;
