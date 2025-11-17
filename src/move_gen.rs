@@ -1,22 +1,23 @@
 use crate::bitboard::BitBoard;
+use crate::board::Color::White;
 use crate::board::{Board, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
 use crate::precomputed::{king_moves, ray_attacks};
 use crate::square::Square;
 
-/// Generates a list of *legal* moves from given board.
+/// Generates a list of *pseudo-legal* moves from given board.
 pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
 
-    let own_pieces: BitBoard = if board.white_to_move {
+    let own_color: BitBoard = if board.white_to_move {
         board.white
     } else {
         board.white.not()
     };
-    let opp_pieces: BitBoard = own_pieces.not();
     let occupied = board.occupied();
-    let own_king_bb = board.kings().and(own_pieces);
+    let opp_pieces: BitBoard = occupied.and(own_color.not());
+    let own_king_bb = board.kings().and(own_color);
     let own_king = Square(own_king_bb.bit_scan_forward());
     assert!(own_king.is_valid());
 
@@ -24,10 +25,11 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         .or(board.pieces[Piece::Queen.idx()])
         .and(opp_pieces);
 
-    let pinned = pinned(own_king, occupied, own_pieces, opp_rq);
+    let pinned = pinned(own_king, occupied, own_color, opp_rq);
     let king_attack_map = king_attack_map(board, board.color_to_move().opposite());
     let attacks_to_king = attacks_to_king(board);
     let num_checks = attacks_to_king.0.count_ones();
+    println!("generate_moves num_checks: {}", num_checks);
     if num_checks == 0 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_king_moves(
@@ -38,6 +40,8 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             },
             &mut v,
         );
+        println!("generate_moves king_moves: {:?}", v);
+
         add_rook_moves(
             AddRookMovesProps {
                 rooks: board.pieces(Piece::Rook, board.color_to_move()),
@@ -48,6 +52,19 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             },
             &mut v,
         );
+        println!("generate_moves rook_moves: {:?}", v);
+
+        add_pawn_moves(
+            AddPawnMovesProps {
+                own_pawns: board.pieces(Piece::Pawn, board.color_to_move()),
+                color_to_move: board.color_to_move(),
+                to_mask: not_own_pieces_bb,
+                not_occupied: occupied.not(),
+                attack_targets: opp_pieces, // TODO: add en-passant pawns eventually
+            },
+            &mut v,
+        );
+        println!("generate_moves pawn_moves: {:?}", v);
     } else if num_checks == 1 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         let checking_piece = attacks_to_king.bit_scan_forward();
@@ -61,14 +78,15 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             },
             &mut v,
         );
-        // Capture the checking piece or block the checking piece
+        // To lift the check, the only possible moves are to capture the checking piece or block the checking piece
+        let lift_check_mask = attacks_to_king.or(attack_line_bb);
         add_rook_moves(
             AddRookMovesProps {
                 rooks: board.pieces(Piece::Rook, board.color_to_move()),
                 king_square: own_king,
                 occupied,
                 pinned,
-                to_mask: attacks_to_king.or(attack_line_bb),
+                to_mask: lift_check_mask,
             },
             &mut v,
         )
@@ -128,6 +146,70 @@ fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
     });
 }
 
+struct AddPawnMovesProps {
+    own_pawns: BitBoard,
+    color_to_move: Color,
+    to_mask: BitBoard,
+    not_occupied: BitBoard,
+    attack_targets: BitBoard,
+}
+
+fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
+    // Single pushes
+    let offset: i8 = match props.color_to_move {
+        White => -8,
+        _ => 8,
+    };
+    let mut tos = pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
+    tos = tos.and(props.to_mask);
+    tos.for_each_set_bit(|to_square| {
+        v.push(Move::new(
+            Square((to_square.0 as i8 + offset) as u8),
+            to_square,
+        ));
+        true
+    });
+
+    // Captures in east direction
+    let east = pawn_captures(props.own_pawns, props.color_to_move, true);
+    east.and(props.attack_targets)
+        .and(props.to_mask)
+        .for_each_set_bit(|to_square| {
+            v.push(Move::new(
+                Square((to_square.0 as i8 + offset - 1) as u8),
+                to_square,
+            ));
+            true
+        });
+
+    // TODO: Captures in west direction
+
+    // TODO: Add captures
+    // TODO: Add promotions
+    // TODO: Add double push targets
+}
+
+fn pawn_single_push(own_pawns: BitBoard, not_occupied: BitBoard, color_to_move: Color) -> BitBoard {
+    let b = match color_to_move {
+        White => own_pawns.shift_north(),
+        _ => own_pawns.shift_south(),
+    };
+    b.and(not_occupied)
+}
+
+fn pawn_captures(own_pawns: BitBoard, color_to_move: Color, capture_east: bool) -> BitBoard {
+    let b = match color_to_move {
+        White => own_pawns.shift_north(),
+        _ => own_pawns.shift_south(),
+    };
+    let b = if capture_east {
+        b.shift_east()
+    } else {
+        b.shift_west()
+    };
+    b
+}
+
 fn rook_attacks(rook_square: Square, occ: BitBoard) -> BitBoard {
     file_attacks(rook_square, occ).or(rank_attacks(rook_square, occ))
 }
@@ -181,7 +263,7 @@ pub fn king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
 }
 
 /// Returns a `BitBoard` containing all pieces currently attacking the king.
-pub fn attacks_to_king(board: &Board) -> BitBoard {
+fn attacks_to_king(board: &Board) -> BitBoard {
     let king = board
         .kings()
         .and(board.own_color_board())
@@ -250,10 +332,8 @@ mod tests {
 
     #[test]
     fn king_should_not_capture_own_piece() {
-        let board = Board::empty()
-            .set_piece("a1".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("a2".parse().unwrap(), Piece::Pawn, Color::White);
-        assert_move_destinations(&generate_moves(&board), &["b1", "b2"]);
+        let board = Board::from_fen("8/8/8/8/8/p1k5/P7/K7 w - - 0 1");
+        assert_eq_unordered(&generate_moves(&board), &move_list(&["a1b1"]));
     }
     #[test]
     fn rook_should_move_correctly_from_a1() {

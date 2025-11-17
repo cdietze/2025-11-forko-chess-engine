@@ -14,6 +14,12 @@ pub const fn ray_attacks(square: Square, dir: Dir8) -> BitBoard {
     RAYS[square.0 as usize][dir.idx()]
 }
 
+#[inline]
+pub const fn pawn_attacks(square: Square, color_to_move: Color, capture_east: bool) -> BitBoard {
+    // TODO: actually precompute this
+    compute_pawn_attacks(square, color_to_move, capture_east)
+}
+
 const KING_MOVES: [BitBoard; 64] = {
     let mut arr = [BitBoard::EMPTY; 64];
     let mut i: u8 = 0;
@@ -67,13 +73,22 @@ const fn compute_king_moves(square: Square) -> BitBoard {
     r.and(b.not())
 }
 
-const fn compute_pawn_attacks(square: Square, color_to_move: Color) -> BitBoard {
+const fn compute_pawn_attacks(
+    square: Square,
+    color_to_move: Color,
+    capture_east: bool,
+) -> BitBoard {
     let b = BitBoard::from_square(square);
-    let bb = match color_to_move {
+    let b = match color_to_move {
         White => b.shift_north(),
         _ => b.shift_south(),
     };
-    bb.shift_west().or(bb.shift_east())
+    let b = if capture_east {
+        b.shift_east()
+    } else {
+        b.shift_west()
+    };
+    b
 }
 
 mod tests {
@@ -168,5 +183,29 @@ mod tests {
                 d, actual, expected
             );
         }
+    }
+
+    #[test]
+    fn white_pawn_attacks_from_d4_are_correct() {
+        assert_eq!(
+            compute_pawn_attacks("d4".parse().unwrap(), White, true),
+            bb_from_coords(&["e5"])
+        );
+        assert_eq!(
+            compute_pawn_attacks("d4".parse().unwrap(), White, false),
+            bb_from_coords(&["c5"])
+        );
+    }
+
+    #[test]
+    fn black_pawn_attacks_from_d4_are_correct() {
+        assert_eq!(
+            compute_pawn_attacks("d4".parse().unwrap(), Color::Black, true),
+            bb_from_coords(&["e3"])
+        );
+        assert_eq!(
+            compute_pawn_attacks("d4".parse().unwrap(), Color::Black, false),
+            bb_from_coords(&["c3"])
+        );
     }
 }

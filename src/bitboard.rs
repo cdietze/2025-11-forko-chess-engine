@@ -66,6 +66,8 @@ impl fmt::Display for BitBoard {
 }
 impl fmt::Debug for BitBoard {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Start on a fresh line in debug output (used e.g. by assert_eq!)
+        writeln!(f)?;
         core::fmt::Display::fmt(self, f)
     }
 }
