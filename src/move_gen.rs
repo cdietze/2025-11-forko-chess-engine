@@ -2,7 +2,7 @@ use crate::bitboard::BitBoard;
 use crate::board::{Board, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
-use crate::precomputed::{KING_MOVES, RAYS};
+use crate::precomputed::{king_moves, ray_attacks};
 use crate::square::Square;
 
 /// Generates a list of *legal* moves from given board.
@@ -94,7 +94,7 @@ struct AddKingMovesProps {
 }
 
 fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
-    let tos = KING_MOVES[props.king_square.0 as usize];
+    let tos = king_moves(props.king_square);
     // Don't capture own pieces
     let tos = tos.and(props.to_mask);
     // Don't move into check
@@ -168,7 +168,7 @@ pub fn king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
     board
         .pieces(Piece::King, opposing_color)
         .for_each_set_bit(|king_square| {
-            map = map.or(KING_MOVES[king_square.0 as usize]);
+            map = map.or(king_moves(king_square));
             true
         });
     board
@@ -193,27 +193,26 @@ pub fn attacks_to_king(board: &Board) -> BitBoard {
 }
 
 fn postive_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
-    let attacks = RAYS[square.0 as usize][ray as usize];
+    let attacks = ray_attacks(square, ray);
     let blocker = occ.and(attacks);
     if blocker.is_not_empty() {
         let b = blocker.bit_scan_forward();
-        return attacks.xor(RAYS[b as usize][ray as usize]);
+        return attacks.xor(ray_attacks(Square(b), ray));
     }
     attacks
 }
 
 fn negative_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
-    let attacks = RAYS[square.0 as usize][ray as usize];
+    let attacks = ray_attacks(square, ray);
     let blocker = occ.and(attacks);
     if blocker.is_not_empty() {
         let b = blocker.bit_scan_backward();
-        return attacks.xor(RAYS[b as usize][ray as usize]);
+        return attacks.xor(ray_attacks(Square(b), ray));
     }
     attacks
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::*;
     use crate::board::{Color, Piece};
     use crate::search::find_best_move;

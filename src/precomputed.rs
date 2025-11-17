@@ -1,19 +1,30 @@
 use crate::bitboard::BitBoard;
+use crate::board::Color;
+use crate::board::Color::White;
 use crate::geometry::Dir8;
 use crate::square::Square;
 
-/// Precomputed king move bitboards
-pub const KING_MOVES: [BitBoard; 64] = {
+#[inline]
+pub const fn king_moves(square: Square) -> BitBoard {
+    KING_MOVES[square.0 as usize]
+}
+
+#[inline]
+pub const fn ray_attacks(square: Square, dir: Dir8) -> BitBoard {
+    RAYS[square.0 as usize][dir.idx()]
+}
+
+const KING_MOVES: [BitBoard; 64] = {
     let mut arr = [BitBoard::EMPTY; 64];
     let mut i: u8 = 0;
     while i < 64 {
-        arr[i as usize] = king_moves(Square(i));
+        arr[i as usize] = compute_king_moves(Square(i));
         i += 1;
     }
     arr
 };
 
-pub static RAYS: [[BitBoard; Dir8::COUNT]; 64] = {
+static RAYS: [[BitBoard; Dir8::COUNT]; 64] = {
     let mut arr = [[BitBoard::EMPTY; Dir8::COUNT]; 64];
     let mut i = 0;
     while i < 64 {
@@ -49,11 +60,20 @@ const fn ray_mask(square: u8) -> [BitBoard; Dir8::COUNT] {
     ]
 }
 
-const fn king_moves(square: Square) -> BitBoard {
+const fn compute_king_moves(square: Square) -> BitBoard {
     let b = BitBoard::from_square(square);
     let mut r = b.or(b.shift_east()).or(b.shift_west());
     r = r.or(r.shift_north()).or(r.shift_south());
     r.and(b.not())
+}
+
+const fn compute_pawn_attacks(square: Square, color_to_move: Color) -> BitBoard {
+    let b = BitBoard::from_square(square);
+    let bb = match color_to_move {
+        White => b.shift_north(),
+        _ => b.shift_south(),
+    };
+    bb.shift_west().or(bb.shift_east())
 }
 
 mod tests {
