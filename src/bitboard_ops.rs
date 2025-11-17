@@ -1,5 +1,3 @@
-use std::ops::Not;
-// Bitwise and shift operators so we can write idiomatic expressions on BitBoard
 pub(crate) use crate::bitboard::BitBoard;
 use crate::square::Square;
 
@@ -36,17 +34,14 @@ impl BitBoard {
     pub const FULL: BitBoard = BitBoard(!0);
     pub const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
     pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
-
     #[inline]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
-
     #[inline]
     pub const fn is_not_empty(self) -> bool {
         self.0 != 0
     }
-
     #[inline]
     pub const fn bit_scan_forward(self) -> u8 {
         self.0.trailing_zeros() as u8
@@ -63,27 +58,22 @@ impl BitBoard {
             self.clear_bit(idx)
         }
     }
-
     #[inline]
     pub const fn set_bit(self, idx: u8) -> Self {
         self.or(BitBoard::from_idx(idx))
     }
-
     #[inline]
     pub const fn clear_bit(self, idx: u8) -> Self {
         self.and(BitBoard::from_idx(idx).not())
     }
-
     #[inline]
     pub const fn is_set(self, idx: u8) -> bool {
         (self.0 & (1 << idx)) != 0
     }
-
     #[inline]
     pub const fn is_clear(self, idx: u8) -> bool {
         !self.is_set(idx)
     }
-
     #[inline]
     pub const fn toggle_bit(self, idx: u8) -> Self {
         self.xor(BitBoard::from_idx(idx))
@@ -92,7 +82,6 @@ impl BitBoard {
     pub const fn shift_north(self) -> Self {
         self.shl(8)
     }
-
     #[inline]
     pub const fn shift_south(self) -> Self {
         self.shr(8)
@@ -101,12 +90,10 @@ impl BitBoard {
     pub const fn shift_east(self) -> Self {
         self.shl(1).and(BitBoard::NOT_A_FILE)
     }
-
     #[inline]
     pub const fn shift_west(self) -> Self {
         self.shr(1).and(BitBoard::NOT_H_FILE)
     }
-
     #[inline]
     pub fn for_each_set_bit(&self, mut f: impl FnMut(Square) -> bool) -> bool {
         let mut bb = self.0;
@@ -119,12 +106,10 @@ impl BitBoard {
         }
         true
     }
-
     #[inline]
     pub fn intersects(&self, other: BitBoard) -> bool {
         (self.0 & other.0) != 0
     }
-
     #[inline]
     pub fn has_square(&self, sq: Square) -> bool {
         self.is_set(sq.0)

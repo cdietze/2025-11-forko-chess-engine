@@ -17,7 +17,6 @@ impl BitBoard {
     }
 
     /// Creates a BitBoard from multiple square indices by combining them with OR operations
-    #[inline]
     pub fn from_squares(squares: impl IntoIterator<Item = Square>) -> Self {
         squares
             .into_iter()

@@ -174,7 +174,6 @@ const fn mirror_sq_for_black(sq: u8) -> u8 {
     sq ^ 56 // flip ranks (vertical mirror)
 }
 
-#[inline]
 fn pst_for(piece: Piece, mg: bool) -> &'static [i32; 64] {
     match (piece, mg) {
         (Piece::Pawn, true) => &MG_PAWN_PST,
@@ -198,7 +197,6 @@ fn piece_value(piece: Piece, mg: bool) -> i32 {
     if mg { MG_VALUE[idx] } else { EG_VALUE[idx] }
 }
 
-#[inline]
 fn eval_side(board: &Board, color: Color, mg: bool) -> i32 {
     let mut score = 0;
     for &p in &Piece::ALL {
@@ -218,7 +216,6 @@ fn eval_side(board: &Board, color: Color, mg: bool) -> i32 {
     score
 }
 
-#[inline]
 fn game_phase(board: &Board) -> i32 {
     let mut phase = 0;
     for &p in &Piece::ALL {

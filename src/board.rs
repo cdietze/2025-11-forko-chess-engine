@@ -160,7 +160,6 @@ impl Board {
     }
 
     /// Returns a bitboard of all occupied squares
-    #[inline]
     pub fn occupied(&self) -> BitBoard {
         self.pieces
             .iter()
@@ -169,7 +168,6 @@ impl Board {
             .unwrap_or(BitBoard(0))
     }
 
-    #[inline]
     fn piece_at(&self, square: u8) -> Option<(Piece, Color)> {
         if !self.occupied().is_set(square) {
             return None;
