@@ -1,47 +1,17 @@
 use crate::bitboard::BitBoard;
+use crate::geometry::Dir8;
 use crate::square::Square;
 
 /// Precomputed king move bitboards
 pub const KING_MOVES: [BitBoard; 64] = {
     let mut arr = [BitBoard::EMPTY; 64];
-    let mut i = 0;
+    let mut i: u8 = 0;
     while i < 64 {
-        let bb = BitBoard::from_square(Square(i as u8));
-        arr[i] = bb.king_moves();
+        arr[i as usize] = king_moves(Square(i));
         i += 1;
     }
     arr
 };
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Dir8 {
-    North,
-    South,
-    East,
-    West,
-    NorthEast,
-    SouthEast,
-    NorthWest,
-    SouthWest,
-}
-impl Dir8 {
-    pub const COUNT: usize = 8;
-    pub const ALL: [Dir8; Dir8::COUNT] = [
-        Dir8::North,
-        Dir8::South,
-        Dir8::East,
-        Dir8::West,
-        Dir8::NorthEast,
-        Dir8::SouthEast,
-        Dir8::NorthWest,
-        Dir8::SouthWest,
-    ];
-    #[inline]
-    pub const fn idx(self) -> usize {
-        self as usize
-    }
-}
 
 pub static RAYS: [[BitBoard; Dir8::COUNT]; 64] = {
     let mut arr = [[BitBoard::EMPTY; Dir8::COUNT]; 64];
@@ -79,13 +49,11 @@ const fn ray_mask(square: u8) -> [BitBoard; Dir8::COUNT] {
     ]
 }
 
-impl BitBoard {
-    const fn king_moves(self) -> BitBoard {
-        let b = self;
-        let mut r = b.or(b.shift_east()).or(b.shift_west());
-        r = r.or(r.shift_north()).or(r.shift_south());
-        r.and(b.not())
-    }
+const fn king_moves(square: Square) -> BitBoard {
+    let b = BitBoard::from_square(square);
+    let mut r = b.or(b.shift_east()).or(b.shift_west());
+    r = r.or(r.shift_north()).or(r.shift_south());
+    r.and(b.not())
 }
 
 mod tests {

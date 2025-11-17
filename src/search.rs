@@ -1,7 +1,7 @@
 use crate::board::Board;
 use crate::eval::eval;
 use crate::r#move::Move;
-use crate::move_gen::{generate_king_attack_map, generate_moves};
+use crate::move_gen::{generate_moves, king_attack_map};
 use crate::util::with_separator;
 
 const CHECKMATE_SCORE: i32 = -1_000_000;
@@ -53,8 +53,7 @@ fn nega_max_impl(
     let mut best_move = None;
     let moves = generate_moves(board);
     if moves.is_empty() {
-        let opponent_attack_board =
-            generate_king_attack_map(board, board.color_to_move().opposite());
+        let opponent_attack_board = king_attack_map(board, board.color_to_move().opposite());
         if opponent_attack_board
             .and(board.kings().and(board.own_color_board()))
             .is_not_empty()
