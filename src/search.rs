@@ -65,6 +65,7 @@ fn nega_max_impl(
         }
     }
     for m in moves {
+        // TODO: Don't clone board but use unmake_move
         let mut b = *board;
         b.make_move(m);
         let score = -nega_max_impl(&mut b, depth - 1, info, false).0;

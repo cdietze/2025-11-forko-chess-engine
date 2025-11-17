@@ -21,8 +21,6 @@ impl Dir4 {
     }
 }
 
-impl BitBoard {}
-
 /// Generates a list of *legal* moves from given board.
 pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();

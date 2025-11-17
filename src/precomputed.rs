@@ -47,7 +47,7 @@ pub static RAYS: [[BitBoard; Dir8::COUNT]; 64] = {
     let mut arr = [[BitBoard::EMPTY; Dir8::COUNT]; 64];
     let mut i = 0;
     while i < 64 {
-        arr[i] = ray_mask2(i as u8);
+        arr[i] = ray_mask(i as u8);
         i += 1;
     }
     arr
@@ -65,7 +65,7 @@ macro_rules! ray_dir {
     }};
 }
 
-const fn ray_mask2(square: u8) -> [BitBoard; Dir8::COUNT] {
+const fn ray_mask(square: u8) -> [BitBoard; Dir8::COUNT] {
     let origin = BitBoard::from_square(Square(square));
     [
         ray_dir!(square, shift_north).and(origin.not()),
