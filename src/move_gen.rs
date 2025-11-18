@@ -17,8 +17,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     };
     let occupied = board.occupied();
     let opp_pieces: BitBoard = occupied.and(own_color.not());
-    let own_king_bb = board.kings().and(own_color);
-    let own_king = Square(own_king_bb.bit_scan_forward());
+    let own_king = Square(board.kings().and(own_color).bit_scan_forward());
     assert!(own_king.is_valid());
 
     let opp_rq = board.pieces[Piece::Rook.idx()]
@@ -27,7 +26,8 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
 
     let pinned = pinned(own_king, occupied, own_color, opp_rq);
     let king_attack_map = king_attack_map(board, board.color_to_move().opposite());
-    let attacks_to_king = attacks_to_king(board);
+
+    let attacks_to_king = attacks_to_king(own_king, occupied, own_color.not(), board.pieces);
     let num_checks = attacks_to_king.0.count_ones();
     println!("generate_moves num_checks: {}", num_checks);
     if num_checks == 0 {
@@ -89,7 +89,17 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
                 to_mask: lift_check_mask,
             },
             &mut v,
-        )
+        );
+        add_pawn_moves(
+            AddPawnMovesProps {
+                own_pawns: board.pieces(Piece::Pawn, board.color_to_move()),
+                color_to_move: board.color_to_move(),
+                to_mask: not_own_pieces_bb.and(lift_check_mask),
+                not_occupied: occupied.not(),
+                attack_targets: opp_pieces, // TODO: add en-passant pawns eventually
+            },
+            &mut v,
+        );
     } else if num_checks > 1 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         // In double check, only king moves to safe squares are possible
@@ -103,6 +113,14 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         );
     }
     v
+}
+
+pub fn filter_legal_moves(moves: &mut Vec<Move>, board: &Board) {
+    moves.retain(|&m| {
+        let mut b = *board;
+        b.make_move(m);
+        !is_opp_side_in_check(&b)
+    });
 }
 
 struct AddKingMovesProps {
@@ -262,15 +280,23 @@ pub fn king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
     map
 }
 
+pub fn is_opp_side_in_check(board: &Board) -> bool {
+    let own_color_board = board.own_color_board();
+    let king_square = board.king_square(board.color_to_move().opposite());
+    let attacks = attacks_to_king(king_square, board.occupied(), own_color_board, board.pieces);
+    attacks.is_not_empty()
+}
+
 /// Returns a `BitBoard` containing all pieces currently attacking the king.
-fn attacks_to_king(board: &Board) -> BitBoard {
-    let king = board
-        .kings()
-        .and(board.own_color_board())
-        .bit_scan_forward();
-    let occupied = board.occupied();
-    let rook_attackers = rook_attacks(Square(king), occupied)
-        .and(board.pieces(Piece::Rook, board.color_to_move().opposite()));
+fn attacks_to_king(
+    king_square: Square,
+    occ: BitBoard,
+    opp_color_board: BitBoard,
+    pieces: [BitBoard; Piece::COUNT],
+) -> BitBoard {
+    let opp_board = opp_color_board;
+    let rook_attackers =
+        rook_attacks(king_square, occ).and(pieces[Piece::Rook.idx()].and(opp_board));
     rook_attackers
 }
 
@@ -308,6 +334,19 @@ mod tests {
             .map(|m| m.parse::<Move>().unwrap())
             .collect()
     }
+
+    fn assert_move_sources(moves: &[Move], expected: &[&str]) {
+        let actual: BTreeSet<String> = moves.iter().map(|m| m.from().algebraic()).collect();
+        let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
+        assert_eq!(actual, expected);
+    }
+
+    fn assert_move_destinations(moves: &[Move], expected: &[&str]) {
+        let actual: BTreeSet<String> = moves.iter().map(|m| m.to().algebraic()).collect();
+        let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
+        assert_eq!(actual, expected);
+    }
+
     #[test]
     fn xray_rook_should_be_correct() {
         let blockers = BitBoard::try_from_coords(["a3", "a6"]).unwrap();
@@ -375,6 +414,15 @@ mod tests {
     }
 
     #[test]
+    fn should_find_legal_pawn_moves_when_pinned() {
+        let board = Board::from_fen("7k/8/8/2P5/6r1/KP4r1/6r1/8 w - - 0 1");
+        let mut moves = generate_moves(&board);
+        assert_eq_unordered(&moves, &move_list(&["b3b4", "c5c6"]));
+        filter_legal_moves(&mut moves, &board);
+        assert_eq_unordered(&moves, &move_list(&["c5c6"]));
+    }
+
+    #[test]
     fn should_find_no_moves_when_checkmate() {
         let mut board = Board::empty()
             .set_piece("e6".parse().unwrap(), Piece::King, Color::White)
@@ -385,54 +433,38 @@ mod tests {
         assert_eq!(moves.len(), 0);
     }
 
-    fn assert_move_sources(moves: &[Move], expected: &[&str]) {
-        let actual: BTreeSet<String> = moves.iter().map(|m| m.from().algebraic()).collect();
-        let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
-        assert_eq!(actual, expected);
-    }
-
-    fn assert_move_destinations(moves: &[Move], expected: &[&str]) {
-        let actual: BTreeSet<String> = moves.iter().map(|m| m.to().algebraic()).collect();
-        let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
-        assert_eq!(actual, expected);
-    }
-
     #[test]
     fn should_not_move_pinned_rook_and_leave_king_in_check() {
         let board = Board::from_fen("8/8/8/8/8/8/5kr1/5rRK w - - 0 1");
-        let moves = generate_moves(&board);
-        let expected = move_list(&["g1f1"]);
-        assert_eq!(moves, expected, "unexpected moves: {:?}", moves);
+        assert_eq_unordered(&generate_moves(&board), &move_list(&["g1f1"]));
     }
 
     #[test]
     fn when_in_check_should_evade() {
         let board = Board::from_fen("7k/8/8/8/1R6/8/8/Kr6 w - - 0 1");
-        let moves = generate_moves(&board);
-        let expected = move_list(&["a1a2", "a1b1", "b4b1"]);
-        assert_eq_unordered(&moves, &expected);
+        assert_eq_unordered(
+            &generate_moves(&board),
+            &move_list(&["a1a2", "a1b1", "b4b1"]),
+        );
     }
     #[test]
     fn when_in_check_should_block() {
         let board = Board::from_fen("7k/8/8/8/8/8/1R6/K1r5 w - - 0 1");
-        let moves = generate_moves(&board);
-        let expected = move_list(&["a1a2", "b2b1"]);
-        assert_eq_unordered(&moves, &expected);
+        assert_eq_unordered(&generate_moves(&board), &move_list(&["a1a2", "b2b1"]));
     }
     #[test]
     fn should_solve_king_check_position() {
         let board = Board::from_fen("7k/8/8/8/1RR5/8/8/K1r3R1 w - - 0 1");
-        let moves = generate_moves(&board);
-        let expected = move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]);
-        assert_eq_unordered(&moves, &expected);
+        assert_eq_unordered(
+            &generate_moves(&board),
+            &move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]),
+        );
     }
 
     #[test]
     fn should_solve_double_check_position() {
         let board = Board::from_fen("7k/3r2R1/8/8/5R2/8/8/3K2r1 w - - 0 1");
-        let moves = generate_moves(&board);
-        let expected = move_list(&["d1c2", "d1e2"]);
-        assert_eq_unordered(&moves, &expected);
+        assert_eq_unordered(&generate_moves(&board), &move_list(&["d1c2", "d1e2"]));
     }
 
     #[test]

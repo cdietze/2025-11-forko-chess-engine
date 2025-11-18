@@ -131,18 +131,18 @@ impl Board {
         self.pieces[Piece::King as usize]
     }
 
-    pub fn own_color_board(&self) -> BitBoard {
-        if self.white_to_move {
-            self.white
-        } else {
-            self.white.not()
-        }
-    }
     pub fn color_board(&self, color: Color) -> BitBoard {
         match color {
             Color::White => self.white,
             Color::Black => self.white.not(),
         }
+    }
+    pub fn own_color_board(&self) -> BitBoard {
+        self.color_board(self.color_to_move())
+    }
+
+    pub fn king_square(&self, color: Color) -> Square {
+        Square(self.kings().and(self.color_board(color)).bit_scan_forward())
     }
 
     #[inline]
