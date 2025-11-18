@@ -178,8 +178,9 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         White => -8,
         _ => 8,
     };
-    let mut tos = pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
-    tos = tos.and(props.to_mask);
+    let mut single_push =
+        pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
+    let mut tos = single_push.and(props.to_mask);
     tos.for_each_set_bit(|to_square| {
         v.push(Move::new(
             Square((to_square.0 as i8 + offset) as u8),
@@ -187,10 +188,28 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         ));
         true
     });
-
+    // Double pushes
+    tos = if props.color_to_move == White {
+        single_push
+            .shift_north()
+            .and(props.to_mask)
+            .and(BitBoard::RANK_4)
+    } else {
+        single_push
+            .shift_south()
+            .and(props.to_mask)
+            .and(BitBoard::RANK_5)
+    };
+    tos.for_each_set_bit(|to_square| {
+        v.push(Move::new(
+            Square((to_square.0 as i8 + offset * 2) as u8),
+            to_square,
+        ));
+        true
+    });
     // Captures in east direction
-    let east = pawn_captures(props.own_pawns, props.color_to_move, true);
-    east.and(props.attack_targets)
+    pawn_captures(props.own_pawns, props.color_to_move, true)
+        .and(props.attack_targets)
         .and(props.to_mask)
         .for_each_set_bit(|to_square| {
             v.push(Move::new(
@@ -199,12 +218,19 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
             ));
             true
         });
-
-    // TODO: Captures in west direction
-
-    // TODO: Add captures
+    // Captures in west direction
+    pawn_captures(props.own_pawns, props.color_to_move, false)
+        .and(props.attack_targets)
+        .and(props.to_mask)
+        .for_each_set_bit(|to_square| {
+            v.push(Move::new(
+                Square((to_square.0 as i8 + offset + 1) as u8),
+                to_square,
+            ));
+            true
+        });
     // TODO: Add promotions
-    // TODO: Add double push targets
+    // TODO: Add en passant
 }
 
 fn pawn_single_push(own_pawns: BitBoard, not_occupied: BitBoard, color_to_move: Color) -> BitBoard {
@@ -414,12 +440,21 @@ mod tests {
     }
 
     #[test]
-    fn should_find_legal_pawn_moves_when_pinned() {
+    fn pawns_should_find_legal_moves_when_pinned() {
         let board = Board::from_fen("7k/8/8/2P5/6r1/KP4r1/6r1/8 w - - 0 1");
         let mut moves = generate_moves(&board);
         assert_eq_unordered(&moves, &move_list(&["b3b4", "c5c6"]));
         filter_legal_moves(&mut moves, &board);
         assert_eq_unordered(&moves, &move_list(&["c5c6"]));
+    }
+
+    #[test]
+    fn pawns_should_find_moves() {
+        let board = Board::from_fen("7k/5P2/8/8/8/r1r5/1P6/1K6 w - - 0 1");
+        assert_eq_unordered(
+            &generate_moves(&board),
+            &move_list(&["b2b3", "b2b4", "b2a3", "b2c3", "f7f8"]),
+        );
     }
 
     #[test]
