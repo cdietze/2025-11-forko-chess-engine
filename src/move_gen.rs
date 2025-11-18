@@ -35,6 +35,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
+                occupied,
                 to_mask: not_own_pieces_bb,
                 king_attack_map,
             },
@@ -73,6 +74,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
+                occupied,
                 to_mask: not_own_pieces_bb,
                 king_attack_map,
             },
@@ -106,6 +108,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
+                occupied,
                 to_mask: not_own_pieces_bb,
                 king_attack_map,
             },
@@ -125,6 +128,7 @@ pub fn filter_legal_moves(moves: &mut Vec<Move>, board: &Board) {
 
 struct AddKingMovesProps {
     king_square: Square,
+    occupied: BitBoard,
     to_mask: BitBoard,
     king_attack_map: BitBoard,
 }
@@ -135,8 +139,14 @@ fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     let tos = tos.and(props.to_mask);
     // Don't move into check
     let tos = tos.and(props.king_attack_map.not());
-    tos.for_each_set_bit(|to_square| {
-        v.push(Move::new(props.king_square, to_square));
+
+    let captures = tos.and(props.occupied);
+    captures.for_each_set_bit(|to_square| {
+        v.push(Move::new_capture(props.king_square, to_square));
+        true
+    });
+    tos.and(props.occupied.not()).for_each_set_bit(|to_square| {
+        v.push(Move::new_quiet(props.king_square, to_square));
         true
     });
 }
@@ -149,15 +159,19 @@ struct AddRookMovesProps {
     to_mask: BitBoard,
 }
 fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
-    let occupied = props.occupied;
     props.rooks.for_each_set_bit(|rook_square| {
-        let mut tos = rook_attacks(rook_square, occupied);
+        let mut tos = rook_attacks(rook_square, props.occupied);
         tos = tos.and(props.to_mask);
         if props.pinned.has_square(rook_square) {
             tos = tos.and(line_bb(props.king_square, rook_square))
         }
-        tos.for_each_set_bit(|to_square| {
-            v.push(Move::new(rook_square, to_square));
+        let captures = tos.and(props.occupied);
+        captures.for_each_set_bit(|to_square| {
+            v.push(Move::new_capture(rook_square, to_square));
+            true
+        });
+        tos.and(props.occupied.not()).for_each_set_bit(|to_square| {
+            v.push(Move::new_quiet(rook_square, to_square));
             true
         });
         true
@@ -182,10 +196,8 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
     let mut tos = single_push.and(props.to_mask);
     tos.for_each_set_bit(|to_square| {
-        v.push(Move::new(
-            Square((to_square.0 as i8 + offset) as u8),
-            to_square,
-        ));
+        let from = Square((to_square.0 as i8 + offset) as u8);
+        v.push(Move::new_quiet(from, to_square));
         true
     });
     // Double pushes
@@ -201,10 +213,8 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
             .and(BitBoard::RANK_5)
     };
     tos.for_each_set_bit(|to_square| {
-        v.push(Move::new(
-            Square((to_square.0 as i8 + offset * 2) as u8),
-            to_square,
-        ));
+        let from = Square((to_square.0 as i8 + offset * 2) as u8);
+        v.push(Move::new_double_pawn_push(from, to_square));
         true
     });
     // Captures in east direction
@@ -212,10 +222,8 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         .and(props.attack_targets)
         .and(props.to_mask)
         .for_each_set_bit(|to_square| {
-            v.push(Move::new(
-                Square((to_square.0 as i8 + offset - 1) as u8),
-                to_square,
-            ));
+            let from = Square((to_square.0 as i8 + offset - 1) as u8);
+            v.push(Move::new_capture(from, to_square));
             true
         });
     // Captures in west direction
@@ -223,10 +231,8 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         .and(props.attack_targets)
         .and(props.to_mask)
         .for_each_set_bit(|to_square| {
-            v.push(Move::new(
-                Square((to_square.0 as i8 + offset + 1) as u8),
-                to_square,
-            ));
+            let from = Square((to_square.0 as i8 + offset + 1) as u8);
+            v.push(Move::new_capture(from, to_square));
             true
         });
     // TODO: Add promotions
@@ -373,6 +379,12 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    fn assert_eq_moves(a: &[Move], b: &[Move]) {
+        let a: Vec<String> = a.iter().map(|m| m.to_string()).collect();
+        let b: Vec<String> = b.iter().map(|m| m.to_string()).collect();
+        assert_eq_unordered(&a, &b);
+    }
+
     #[test]
     fn xray_rook_should_be_correct() {
         let blockers = BitBoard::try_from_coords(["a3", "a6"]).unwrap();
@@ -398,7 +410,7 @@ mod tests {
     #[test]
     fn king_should_not_capture_own_piece() {
         let board = Board::from_fen("8/8/8/8/8/p1k5/P7/K7 w - - 0 1");
-        assert_eq_unordered(&generate_moves(&board), &move_list(&["a1b1"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["a1b1"]));
     }
     #[test]
     fn rook_should_move_correctly_from_a1() {
@@ -443,15 +455,15 @@ mod tests {
     fn pawns_should_find_legal_moves_when_pinned() {
         let board = Board::from_fen("7k/8/8/2P5/6r1/KP4r1/6r1/8 w - - 0 1");
         let mut moves = generate_moves(&board);
-        assert_eq_unordered(&moves, &move_list(&["b3b4", "c5c6"]));
+        assert_eq_moves(&moves, &move_list(&["b3b4", "c5c6"]));
         filter_legal_moves(&mut moves, &board);
-        assert_eq_unordered(&moves, &move_list(&["c5c6"]));
+        assert_eq_moves(&moves, &move_list(&["c5c6"]));
     }
 
     #[test]
     fn pawns_should_find_moves() {
         let board = Board::from_fen("7k/5P2/8/8/8/r1r5/1P6/1K6 w - - 0 1");
-        assert_eq_unordered(
+        assert_eq_moves(
             &generate_moves(&board),
             &move_list(&["b2b3", "b2b4", "b2a3", "b2c3", "f7f8"]),
         );
@@ -471,13 +483,13 @@ mod tests {
     #[test]
     fn should_not_move_pinned_rook_and_leave_king_in_check() {
         let board = Board::from_fen("8/8/8/8/8/8/5kr1/5rRK w - - 0 1");
-        assert_eq_unordered(&generate_moves(&board), &move_list(&["g1f1"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["g1f1"]));
     }
 
     #[test]
     fn when_in_check_should_evade() {
         let board = Board::from_fen("7k/8/8/8/1R6/8/8/Kr6 w - - 0 1");
-        assert_eq_unordered(
+        assert_eq_moves(
             &generate_moves(&board),
             &move_list(&["a1a2", "a1b1", "b4b1"]),
         );
@@ -490,7 +502,7 @@ mod tests {
     #[test]
     fn should_solve_king_check_position() {
         let board = Board::from_fen("7k/8/8/8/1RR5/8/8/K1r3R1 w - - 0 1");
-        assert_eq_unordered(
+        assert_eq_moves(
             &generate_moves(&board),
             &move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]),
         );
@@ -499,7 +511,7 @@ mod tests {
     #[test]
     fn should_solve_double_check_position() {
         let board = Board::from_fen("7k/3r2R1/8/8/5R2/8/8/3K2r1 w - - 0 1");
-        assert_eq_unordered(&generate_moves(&board), &move_list(&["d1c2", "d1e2"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["d1c2", "d1e2"]));
     }
 
     #[test]

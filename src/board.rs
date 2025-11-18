@@ -92,11 +92,13 @@ impl Board {
                 break;
             }
         }
-        assert!(moved_piece_idx.is_some(), "No piece found at source square");
+        debug_assert!(moved_piece_idx.is_some(), "No piece found at source square");
         let pi = moved_piece_idx.unwrap();
         // Handle capture: clear any piece on destination
-        for j in 0..Piece::COUNT {
-            self.pieces[j] = self.pieces[j].clear_bit(to);
+        if m.capture() {
+            for j in 0..Piece::COUNT {
+                self.pieces[j] = self.pieces[j].clear_bit(to);
+            }
         }
 
         // Move the piece: set "to" and clear "from"

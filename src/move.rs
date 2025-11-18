@@ -5,24 +5,11 @@ use crate::square::Square;
 /// Bit layout (little-endian within the 16-bit integer):
 /// - bits 0..=5   (6 bits): from-square index (0..=63)
 /// - bits 6..=11  (6 bits): to-square index (0..=63)
-/// - bits 12..=15 (4 bits): flags (free-form; can encode capture, castle, promotion kind, etc.)
+/// - bit 12: promotion flag
+/// - bit 13: capture flag
+/// - bits 14..=15 (2 bits): special flags
 ///
-/// Notes and guarantees:
-/// - All constructors mask their inputs, so out-of-range values are truncated to the valid bit width
-///   instead of panicking. This makes the API fast and constexpr-friendly.
-/// - Accessors (`from`, `to`, `flags`) always return masked values in the valid range.
-/// - The type is a `#[repr(transparent)]` wrapper over `u16` for zero-cost passing and copying.
-///
-/// Example
-/// ```text
-/// use cpd_chess::square::Square;
-/// use cpd_chess::mv::Move; // re-export path may differ depending on your module setup
-///
-/// let m = Move::from_parts(0, 63, 0b1010);
-/// assert_eq!(m.from(), Square(0));
-/// assert_eq!(m.to(), Square(63));
-/// assert_eq!(m.flags(), 0b1010);
-/// ```
+/// Adapted from: https://www.chessprogramming.org/Encoding_Moves#From-To_Based
 
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -37,16 +24,48 @@ impl Move {
     const TO_SHIFT: u16 = Self::FROM_SHIFT + Self::FROM_BITS; // 6
     const FLAG_SHIFT: u16 = Self::TO_SHIFT + Self::TO_BITS; // 12
 
+    const PROMOTION_SHIFT: u16 = Self::FLAG_SHIFT;
+    const CAPTURE_SHIFT: u16 = Self::FLAG_SHIFT + 1;
+
     const FROM_MASK: u16 = (1u16 << Self::FROM_BITS) - 1; // 0x3F
     const TO_MASK: u16 = (1u16 << Self::TO_BITS) - 1; // 0x3F
-    const FLAG_MASK: u16 = (1u16 << Self::FLAG_BITS) - 1; // 0x0F
+    const FLAG_MASK: u16 = (1u16 << Self::FLAG_BITS) - 1;
 
-    /// Creates a move from two squares. Extra bits in the inputs are masked.
     #[inline]
-    pub const fn new(from: Square, to: Square) -> Self {
+    pub const fn new(
+        from: Square,
+        to: Square,
+        promotion: bool,
+        capture: bool,
+        special0: bool,
+        special1: bool,
+    ) -> Self {
         let f = (from.0 as u16) & Self::FROM_MASK;
         let t = (to.0 as u16) & Self::TO_MASK;
-        Self((f << Self::FROM_SHIFT) | (t << Self::TO_SHIFT))
+        let flags = ((promotion as u16) << 0)
+            | ((capture as u16) << 1)
+            | ((special0 as u16) << 2)
+            | ((special1 as u16) << 3);
+        Self(
+            (f << Self::FROM_SHIFT)
+                | (t << Self::TO_SHIFT)
+                | ((flags & Self::FLAG_MASK) << Self::FLAG_SHIFT),
+        )
+    }
+
+    #[inline]
+    pub const fn new_quiet(from: Square, to: Square) -> Self {
+        Self::new(from, to, false, false, false, false)
+    }
+
+    #[inline]
+    pub const fn new_capture(from: Square, to: Square) -> Self {
+        Self::new(from, to, false, true, false, false)
+    }
+
+    #[inline]
+    pub const fn new_double_pawn_push(from: Square, to: Square) -> Self {
+        Self::new(from, to, false, false, false, true)
     }
 
     /// Creates a move from raw indices (0..=63). Extra bits are masked.
@@ -83,6 +102,15 @@ impl Move {
         ((self.0 >> Self::FLAG_SHIFT) & Self::FLAG_MASK) as u8
     }
 
+    #[inline]
+    pub const fn promotion(self) -> bool {
+        (self.0 & (1u16 << Self::PROMOTION_SHIFT)) != 0
+    }
+
+    #[inline]
+    pub const fn capture(self) -> bool {
+        (self.0 & (1u16 << Self::CAPTURE_SHIFT)) != 0
+    }
     /// Returns the underlying 16-bit representation.
     #[inline]
     pub const fn raw(self) -> u16 {
@@ -128,7 +156,7 @@ impl std::str::FromStr for Move {
         let to = coords.get(2..4).ok_or(ParseMoveError).and_then(|s| {
             <crate::square::Square as std::str::FromStr>::from_str(s).map_err(|_| ParseMoveError)
         })?;
-        Ok(Move::new(from, to))
+        Ok(Self::new_quiet(from, to))
     }
 }
 
@@ -138,7 +166,9 @@ mod tests {
 
     #[test]
     fn round_trip_basic() {
-        let m = Move::new(Square(0), Square(63));
+        let from = Square(0);
+        let to = Square(63);
+        let m = Move::new_quiet(from, to);
         assert_eq!(m.from(), Square(0));
         assert_eq!(m.to(), Square(63));
         assert_eq!(m.flags(), 0);
@@ -169,5 +199,34 @@ mod tests {
         assert_eq!(m.from(), Square(1)); // b1 => 0*8 + 1
         assert_eq!(m.to(), Square(18)); // c3 => 2*8 + 2
         assert_eq!(m.flags(), 0);
+    }
+    #[test]
+    fn promotion_and_capture_bits_work() {
+        let from = Square(12); // arbitrary
+        let to = Square(28);
+        // Base quiet move
+        let m0 = Move::new(from, to, false, false, false, false);
+        assert!(!m0.promotion());
+        assert!(!m0.capture());
+        // Capture only
+        let mc = Move::new(from, to, false, true, false, false);
+        assert!(!mc.promotion());
+        assert!(mc.capture());
+        // Promotion only
+        let mp = Move::new(from, to, true, false, false, false);
+        assert!(mp.promotion());
+        assert!(!mp.capture());
+        // Both promotion and capture
+        let mpc = Move::new(from, to, true, true, false, false);
+        assert!(mpc.promotion());
+        assert!(mpc.capture());
+    }
+    #[test]
+    fn double_pawn_push_is_not_capture() {
+        let from = Square(8); // e.g., a white pawn from rank 2
+        let to = Square(24); // pushed two squares
+        let m = Move::new_double_pawn_push(from, to);
+        assert!(!m.capture());
+        assert!(!m.promotion());
     }
 }
