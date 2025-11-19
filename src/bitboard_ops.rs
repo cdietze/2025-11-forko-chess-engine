@@ -34,8 +34,10 @@ impl BitBoard {
     pub const FULL: BitBoard = BitBoard(!0);
     pub const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
     pub const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+    pub const RANK_1: BitBoard = BitBoard(0xff000000000000ff);
     pub const RANK_4: BitBoard = BitBoard(0x00000000ff000000);
     pub const RANK_5: BitBoard = BitBoard(0x000000ff00000000);
+    pub const RANK_8: BitBoard = BitBoard(0xff00000000000000);
     #[inline]
     pub const fn is_empty(self) -> bool {
         self.0 == 0

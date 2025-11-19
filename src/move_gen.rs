@@ -6,6 +6,8 @@ use crate::r#move::Move;
 use crate::precomputed::{king_moves, ray_attacks};
 use crate::square::Square;
 
+const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
+
 /// Generates a list of *pseudo-legal* moves from given board.
 pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
@@ -187,15 +189,26 @@ struct AddPawnMovesProps {
 }
 
 fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
+    let promotion_rank = match props.color_to_move {
+        White => BitBoard::RANK_8,
+        _ => BitBoard::RANK_1,
+    };
+    let not_promotion_rank = promotion_rank.not();
     // Single pushes
     let offset: i8 = match props.color_to_move {
         White => -8,
         _ => 8,
     };
-    let mut single_push =
-        pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
+    let single_push = pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
     let mut tos = single_push.and(props.to_mask);
-    tos.for_each_set_bit(|to_square| {
+    tos.and(promotion_rank).for_each_set_bit(|to_square| {
+        let from = Square((to_square.0 as i8 + offset) as u8);
+        PROMOTION_PIECES.iter().for_each(|p| {
+            v.push(Move::new_promotion(from, to_square, false, *p));
+        });
+        true
+    });
+    tos.and(not_promotion_rank).for_each_set_bit(|to_square| {
         let from = Square((to_square.0 as i8 + offset) as u8);
         v.push(Move::new_quiet(from, to_square));
         true
@@ -217,25 +230,32 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         v.push(Move::new_double_pawn_push(from, to_square));
         true
     });
-    // Captures in east direction
-    pawn_captures(props.own_pawns, props.color_to_move, true)
-        .and(props.attack_targets)
-        .and(props.to_mask)
-        .for_each_set_bit(|to_square| {
-            let from = Square((to_square.0 as i8 + offset - 1) as u8);
+    // Add pawn captures
+    let add_pawn_captures = |tos: BitBoard, offset: i8, v: &mut Vec<Move>| {
+        let tos = tos.and(props.attack_targets).and(props.to_mask);
+        tos.and(promotion_rank).for_each_set_bit(|to_square| {
+            let from = Square((to_square.0 as i8 + offset) as u8);
+            PROMOTION_PIECES.iter().for_each(|p| {
+                v.push(Move::new_promotion(from, to_square, true, *p));
+            });
+            true
+        });
+        tos.and(not_promotion_rank).for_each_set_bit(|to_square| {
+            let from = Square((to_square.0 as i8 + offset) as u8);
             v.push(Move::new_capture(from, to_square));
             true
         });
-    // Captures in west direction
-    pawn_captures(props.own_pawns, props.color_to_move, false)
-        .and(props.attack_targets)
-        .and(props.to_mask)
-        .for_each_set_bit(|to_square| {
-            let from = Square((to_square.0 as i8 + offset + 1) as u8);
-            v.push(Move::new_capture(from, to_square));
-            true
-        });
-    // TODO: Add promotions
+    };
+    add_pawn_captures(
+        pawn_captures(props.own_pawns, props.color_to_move, true),
+        offset - 1,
+        v,
+    );
+    add_pawn_captures(
+        pawn_captures(props.own_pawns, props.color_to_move, false),
+        offset + 1,
+        v,
+    );
     // TODO: Add en passant
 }
 
@@ -465,7 +485,9 @@ mod tests {
         let board = Board::from_fen("7k/5P2/8/8/8/r1r5/1P6/1K6 w - - 0 1");
         assert_eq_moves(
             &generate_moves(&board),
-            &move_list(&["b2b3", "b2b4", "b2a3", "b2c3", "f7f8"]),
+            &move_list(&[
+                "b2b3", "b2b4", "b2a3", "b2c3", "f7f8=Q", "f7f8=N", "f7f8=R", "f7f8=B",
+            ]),
         );
     }
 

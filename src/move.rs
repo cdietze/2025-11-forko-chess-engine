@@ -1,3 +1,4 @@
+use crate::board::Piece;
 use crate::square::Square;
 
 /// Encodes a chess move into a compact 16-bit value.
@@ -8,6 +9,9 @@ use crate::square::Square;
 /// - bit 12: promotion flag
 /// - bit 13: capture flag
 /// - bits 14..=15 (2 bits): special flags
+///
+/// Promotion piece encoding in bits 14..=15 when the promotion flag (bit 12) is set:
+/// - 00 = knight, 01 = bishop, 10 = rook, 11 = queen.
 ///
 /// Adapted from: https://www.chessprogramming.org/Encoding_Moves#From-To_Based
 
@@ -68,6 +72,25 @@ impl Move {
         Self::new(from, to, false, false, false, true)
     }
 
+    #[inline]
+    pub const fn new_promotion(from: Square, to: Square, capture: bool, piece: Piece) -> Self {
+        debug_assert!(
+            matches!(
+                piece,
+                Piece::Knight | Piece::Bishop | Piece::Rook | Piece::Queen
+            ),
+            "promotion piece must be Knight/Bishop/Rook/Queen"
+        );
+        let (special0, special1) = match piece {
+            Piece::Knight => (false, false),
+            Piece::Bishop => (true, false),
+            Piece::Rook => (false, true),
+            Piece::Queen => (true, true),
+            _ => (true, true), // Fallback in release builds
+        };
+        Self::new(from, to, true, capture, special0, special1)
+    }
+
     /// Creates a move from raw indices (0..=63). Extra bits are masked.
     #[inline]
     pub const fn from_indices(from: u8, to: u8) -> Self {
@@ -107,6 +130,17 @@ impl Move {
         (self.0 & (1u16 << Self::PROMOTION_SHIFT)) != 0
     }
 
+    /// If this is a promotion move, returns the encoded piece to promote to.
+    pub const fn promotion_piece(self) -> Piece {
+        match (self.0 >> 14) & 0b11 {
+            0b00 => Piece::Knight,
+            0b01 => Piece::Bishop,
+            0b10 => Piece::Rook,
+            0b11 => Piece::Queen,
+            _ => unreachable!(),
+        }
+    }
+
     #[inline]
     pub const fn capture(self) -> bool {
         (self.0 & (1u16 << Self::CAPTURE_SHIFT)) != 0
@@ -134,7 +168,18 @@ impl core::fmt::Display for ParseMoveError {
 
 impl core::fmt::Display for Move {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}{}", self.from(), self.to())
+        if self.promotion() {
+            let letter = match self.promotion_piece() {
+                Piece::Knight => 'N',
+                Piece::Bishop => 'B',
+                Piece::Rook => 'R',
+                Piece::Queen => 'Q',
+                _ => '?',
+            };
+            write!(f, "{}{}={}", self.from(), self.to(), letter)
+        } else {
+            write!(f, "{}{}", self.from(), self.to())
+        }
     }
 }
 
@@ -156,7 +201,27 @@ impl std::str::FromStr for Move {
         let to = coords.get(2..4).ok_or(ParseMoveError).and_then(|s| {
             <crate::square::Square as std::str::FromStr>::from_str(s).map_err(|_| ParseMoveError)
         })?;
-        Ok(Self::new_quiet(from, to))
+
+        // Optional promotion suffix: e.g., "e7e8=Q"
+        let rest = coords.get(4..).unwrap_or("");
+        if rest.is_empty() {
+            return Ok(Self::new_quiet(from, to));
+        }
+
+        // Expect exactly "=<piece>" where piece is one of N, B, R, Q (case-insensitive)
+        if !rest.starts_with('=') || rest.chars().count() != 2 {
+            return Err(ParseMoveError);
+        }
+        let letter = rest.chars().nth(1).unwrap();
+        let piece = match letter.to_ascii_uppercase() {
+            'N' => Piece::Knight,
+            'B' => Piece::Bishop,
+            'R' => Piece::Rook,
+            'Q' => Piece::Queen,
+            _ => return Err(ParseMoveError),
+        };
+
+        Ok(Self::new_promotion(from, to, false, piece))
     }
 }
 

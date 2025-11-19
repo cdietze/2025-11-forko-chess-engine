@@ -1,4 +1,5 @@
 use crate::bitboard::BitBoard;
+use crate::r#move;
 use crate::r#move::Move;
 use crate::square::Square;
 
@@ -101,8 +102,14 @@ impl Board {
             }
         }
 
-        // Move the piece: set "to" and clear "from"
-        self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
+        if m.promotion() {
+            // Promote the piece: clear "from" and add pomotion piece to "to"
+            self.pieces[pi] = self.pieces[pi].clear_bit(from);
+            self.pieces[m.promotion_piece().idx()].set_bit(to);
+        } else {
+            // Move the piece: set "to" and clear "from"
+            self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
+        }
 
         // Update "white" BitBoard
         self.white = self.white.clear_bit(from).set(to, self.white_to_move);
