@@ -38,8 +38,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             AddKingMovesProps {
                 king_square: own_king,
                 occupied,
-                to_mask: not_own_pieces_bb,
-                king_attack_map,
+                to_mask: not_own_pieces_bb.and(king_attack_map.not()),
             },
             &mut v,
         );
@@ -63,8 +62,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             AddKingMovesProps {
                 king_square: own_king,
                 occupied,
-                to_mask: not_own_pieces_bb,
-                king_attack_map,
+                to_mask: not_own_pieces_bb.and(king_attack_map.not()),
             },
             &mut v,
         );
@@ -88,8 +86,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             AddKingMovesProps {
                 king_square: own_king,
                 occupied,
-                to_mask: not_own_pieces_bb,
-                king_attack_map,
+                to_mask: not_own_pieces_bb.and(king_attack_map.not()),
             },
             &mut v,
         );
@@ -151,14 +148,11 @@ struct AddKingMovesProps {
     king_square: Square,
     occupied: BitBoard,
     to_mask: BitBoard,
-    king_attack_map: BitBoard,
 }
 
 fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     let tos = king_moves(props.king_square);
     let tos = tos.and(props.to_mask);
-    // Don't move into check
-    let tos = tos.and(props.king_attack_map.not());
     tos.and(props.occupied).for_each_set_bit(|to_square| {
         v.push(Move::new_capture(props.king_square, to_square));
         true
