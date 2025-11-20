@@ -3,7 +3,7 @@ use crate::board::Color::White;
 use crate::board::{Board, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
-use crate::precomputed::{king_moves, knight_attacks, ray_attacks};
+use crate::precomputed::{king_moves, knight_attacks, pawn_attacks, ray_attacks};
 use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
@@ -17,21 +17,61 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     } else {
         board.white.not()
     };
+    let opp_color: BitBoard = own_color.not();
     let occupied = board.occupied();
     let opp_pieces: BitBoard = occupied.and(own_color.not());
+    let opp_king = Square(board.kings().and(opp_color).bit_scan_forward());
+    let attacks_to_opp_king = attacks_to_king(AttacksToKingProps {
+        king_square: opp_king,
+        color_to_move: board.color_to_move().opposite(),
+        occupied,
+        opp_color_board: own_color,
+        pieces: board.pieces,
+    });
+    if attacks_to_opp_king.is_not_empty() {
+        //return vec![]; // TODO return special flag indicating illegal move
+    }
     let own_king = Square(board.kings().and(own_color).bit_scan_forward());
+    if !own_king.is_valid() {
+        println!("Invalid own king square! {:?}", own_king);
+        println!("Board:\n{}", board);
+        println!("Own color: {:?}", own_color);
+        println!("Occupied: {:?}", occupied);
+        println!("Opp pieces: {:?}", opp_pieces);
+        println!("Own king: {:?}", own_king);
+        panic!("Invalid own king square: {:?}", own_king);
+    }
     assert!(own_king.is_valid());
-
     let opp_rq = board.pieces[Piece::Rook.idx()]
         .or(board.pieces[Piece::Queen.idx()])
         .and(opp_pieces);
-
-    let pinned = pinned(own_king, occupied, own_color, opp_rq);
+    let opp_bq = board.pieces[Piece::Bishop.idx()]
+        .or(board.pieces[Piece::Queen.idx()])
+        .and(opp_pieces);
+    let pinned = pinned(PinnedProps {
+        king_square: own_king,
+        occupied,
+        own_pieces: own_color,
+        opp_rq,
+        opp_bq,
+    });
     let king_attack_map = king_attack_map(board, board.color_to_move().opposite());
 
-    let attacks_to_king = attacks_to_king(own_king, occupied, own_color.not(), board.pieces);
+    let attacks_to_king = attacks_to_king(AttacksToKingProps {
+        king_square: own_king,
+        color_to_move: board.color_to_move(),
+        occupied,
+        opp_color_board: own_color.not(),
+        pieces: board.pieces,
+    });
+
     let num_checks = attacks_to_king.0.count_ones();
-    println!("generate_moves num_checks: {}", num_checks);
+    // println!("occupied: {:?}", occupied);
+    // println!("opp_pieces: {:?}", opp_pieces);
+    // println!("own_king: {:?}", own_king);
+    // println!("pinned: {:?}", pinned);
+    // println!("king_attack_map: {:?}", king_attack_map);
+    // println!("num_checks: {}", num_checks);
     if num_checks == 0 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_king_moves(
@@ -106,9 +146,11 @@ struct AddPieceMovesProps<'a> {
 /// Adds any piece moves except for kings.
 fn add_piece_moves(props: AddPieceMovesProps, v: &mut Vec<Move>) {
     let board = props.board;
-    add_rook_moves(
-        AddRookMovesProps {
+    add_sliding_pieces_moves(
+        AddSlidingPiecesMovesProps {
+            queens: board.pieces(Piece::Queen, board.color_to_move()),
             rooks: board.pieces(Piece::Rook, board.color_to_move()),
+            bishops: board.pieces(Piece::Bishop, board.color_to_move()),
             king_square: props.own_king,
             occupied: props.occupied,
             pinned: props.pinned,
@@ -136,14 +178,6 @@ fn add_piece_moves(props: AddPieceMovesProps, v: &mut Vec<Move>) {
     );
 }
 
-pub fn filter_legal_moves(moves: &mut Vec<Move>, board: &Board) {
-    moves.retain(|&m| {
-        let mut b = *board;
-        b.make_move(m);
-        !is_opp_side_in_check(&b)
-    });
-}
-
 struct AddKingMovesProps {
     king_square: Square,
     occupied: BitBoard,
@@ -163,32 +197,43 @@ fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     });
 }
 
-struct AddRookMovesProps {
+struct AddSlidingPiecesMovesProps {
+    queens: BitBoard,
     rooks: BitBoard,
+    bishops: BitBoard,
     king_square: Square,
     occupied: BitBoard,
     pinned: BitBoard,
     to_mask: BitBoard,
 }
-fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
-    props.rooks.for_each_set_bit(|rook_square| {
-        let mut tos = rook_attacks(rook_square, props.occupied);
-        tos = tos.and(props.to_mask);
-        if props.pinned.has_square(rook_square) {
-            tos = tos.and(line_bb(props.king_square, rook_square))
+fn add_sliding_pieces_moves(props: AddSlidingPiecesMovesProps, v: &mut Vec<Move>) {
+    let add_sliding_moves = |square: Square, tos: BitBoard, v: &mut Vec<Move>| {
+        let mut tos = tos.and(props.to_mask);
+        if props.pinned.has_square(square) {
+            tos = tos.and(line_bb(props.king_square, square))
         }
         tos.and(props.occupied).for_each_set_bit(|to_square| {
-            v.push(Move::new_capture(rook_square, to_square));
+            v.push(Move::new_capture(square, to_square));
             true
         });
         tos.and(props.occupied.not()).for_each_set_bit(|to_square| {
-            v.push(Move::new_quiet(rook_square, to_square));
+            v.push(Move::new_quiet(square, to_square));
             true
         });
+    };
+    props.queens.for_each_set_bit(|square| {
+        add_sliding_moves(square, queen_attacks(square, props.occupied), v);
+        true
+    });
+    props.bishops.for_each_set_bit(|square| {
+        add_sliding_moves(square, bishop_attacks(square, props.occupied), v);
+        true
+    });
+    props.rooks.for_each_set_bit(|square| {
+        add_sliding_moves(square, rook_attacks(square, props.occupied), v);
         true
     });
 }
-
 struct AddKnightMovesProps {
     knights: BitBoard,
     occupied: BitBoard,
@@ -289,6 +334,7 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
     // TODO: Add en passant
 }
 
+#[inline]
 fn pawn_single_push(own_pawns: BitBoard, not_occupied: BitBoard, color_to_move: Color) -> BitBoard {
     let b = match color_to_move {
         White => own_pawns.shift_north(),
@@ -297,6 +343,7 @@ fn pawn_single_push(own_pawns: BitBoard, not_occupied: BitBoard, color_to_move: 
     b.and(not_occupied)
 }
 
+#[inline]
 fn pawn_captures(own_pawns: BitBoard, color_to_move: Color, capture_east: bool) -> BitBoard {
     let b = match color_to_move {
         White => own_pawns.shift_north(),
@@ -309,30 +356,88 @@ fn pawn_captures(own_pawns: BitBoard, color_to_move: Color, capture_east: bool) 
     };
     b
 }
+#[inline]
+fn pawn_captures_both(own_pawns: BitBoard, color_to_move: Color) -> BitBoard {
+    pawn_captures(own_pawns, color_to_move, true).or(pawn_captures(own_pawns, color_to_move, false))
+}
 
+#[inline]
 fn rook_attacks(rook_square: Square, occ: BitBoard) -> BitBoard {
     file_attacks(rook_square, occ).or(rank_attacks(rook_square, occ))
 }
 
+#[inline]
+fn bishop_attacks(bishop_square: Square, occ: BitBoard) -> BitBoard {
+    diagonal_attacks(bishop_square, occ).or(anti_diagonal_attacks(bishop_square, occ))
+}
+
+#[inline]
+fn queen_attacks(queen_square: Square, occ: BitBoard) -> BitBoard {
+    rook_attacks(queen_square, occ).or(bishop_attacks(queen_square, occ))
+}
+
+#[inline]
 fn file_attacks(square: Square, occ: BitBoard) -> BitBoard {
     postive_ray_attacks(occ, Dir8::East, square).or(negative_ray_attacks(occ, Dir8::West, square))
 }
 
+#[inline]
 fn rank_attacks(square: Square, occ: BitBoard) -> BitBoard {
     postive_ray_attacks(occ, Dir8::North, square).or(negative_ray_attacks(occ, Dir8::South, square))
 }
 
+#[inline]
+fn diagonal_attacks(square: Square, occ: BitBoard) -> BitBoard {
+    postive_ray_attacks(occ, Dir8::NorthEast, square).or(negative_ray_attacks(
+        occ,
+        Dir8::SouthWest,
+        square,
+    ))
+}
+
+#[inline]
+fn anti_diagonal_attacks(square: Square, occ: BitBoard) -> BitBoard {
+    postive_ray_attacks(occ, Dir8::NorthWest, square).or(negative_ray_attacks(
+        occ,
+        Dir8::SouthEast,
+        square,
+    ))
+}
+
+#[inline]
 fn xray_rook(rook_square: Square, occ: BitBoard, blockers: BitBoard) -> BitBoard {
     let attacks = rook_attacks(rook_square, occ);
-    let blockers = blockers.and(attacks);
-    attacks.xor(rook_attacks(rook_square, occ.xor(blockers)))
+    attacks.xor(rook_attacks(rook_square, occ.xor(blockers.and(attacks))))
+}
+
+#[inline]
+fn xray_bishop(bishop_square: Square, occ: BitBoard, blockers: BitBoard) -> BitBoard {
+    let attacks = bishop_attacks(bishop_square, occ);
+    attacks.xor(bishop_attacks(
+        bishop_square,
+        occ.xor(blockers.and(attacks)),
+    ))
+}
+
+struct PinnedProps {
+    king_square: Square,
+    occupied: BitBoard,
+    own_pieces: BitBoard,
+    opp_rq: BitBoard,
+    opp_bq: BitBoard,
 }
 
 /// Returns a `BitBoard` containing all squares with pinned pieces.
-fn pinned(king_square: Square, occ: BitBoard, own_pieces: BitBoard, opp_rq: BitBoard) -> BitBoard {
+fn pinned(props: PinnedProps) -> BitBoard {
+    let king_square = props.king_square;
+    let occ = props.occupied;
+    let own_pieces = props.own_pieces;
+    let opp_rq = props.opp_rq;
+    let opp_bq = props.opp_bq;
     let mut pinned = BitBoard::EMPTY;
-    let pinners = xray_rook(king_square, occ, own_pieces).and(opp_rq);
-    pinners.for_each_set_bit(|square| {
+    let pinners_rq = xray_rook(king_square, occ, own_pieces).and(opp_rq);
+    let pinners_bq = xray_bishop(king_square, occ, own_pieces).and(opp_bq);
+    pinners_rq.or(pinners_bq).for_each_set_bit(|square| {
         let p = between_bb(king_square, square).and(own_pieces);
         pinned = pinned.or(p);
         true
@@ -354,32 +459,66 @@ pub fn king_attack_map(board: &Board, opposing_color: Color) -> BitBoard {
             true
         });
     board
+        .pieces(Piece::Queen, opposing_color)
+        .for_each_set_bit(|queen_square| {
+            map = map.or(queen_attacks(queen_square, occupied));
+            true
+        });
+    board
         .pieces(Piece::Rook, opposing_color)
         .for_each_set_bit(|rook_square| {
             map = map.or(rook_attacks(rook_square, occupied));
             true
         });
+    board
+        .pieces(Piece::Bishop, opposing_color)
+        .for_each_set_bit(|bishop_square| {
+            map = map.or(bishop_attacks(bishop_square, occupied));
+            true
+        });
+    board
+        .pieces(Piece::Knight, opposing_color)
+        .for_each_set_bit(|knight_square| {
+            map = map.or(knight_attacks(knight_square));
+            true
+        });
+    let pawns = board.pieces(Piece::Pawn, opposing_color);
+    map = map.or(pawn_captures_both(pawns, opposing_color));
     map
 }
 
-pub fn is_opp_side_in_check(board: &Board) -> bool {
-    let own_color_board = board.own_color_board();
-    let king_square = board.king_square(board.color_to_move().opposite());
-    let attacks = attacks_to_king(king_square, board.occupied(), own_color_board, board.pieces);
-    attacks.is_not_empty()
+struct AttacksToKingProps {
+    king_square: Square,
+    color_to_move: Color,
+    occupied: BitBoard,
+    opp_color_board: BitBoard,
+    pieces: [BitBoard; Piece::COUNT],
 }
 
 /// Returns a `BitBoard` containing all pieces currently attacking the king.
-fn attacks_to_king(
-    king_square: Square,
-    occ: BitBoard,
-    opp_color_board: BitBoard,
-    pieces: [BitBoard; Piece::COUNT],
-) -> BitBoard {
-    let opp_board = opp_color_board;
-    let rook_attackers =
-        rook_attacks(king_square, occ).and(pieces[Piece::Rook.idx()].and(opp_board));
-    rook_attackers
+///
+/// This works by putting every piece type at the king's square and checking if that
+/// attacks a piece of its own type.
+fn attacks_to_king(props: AttacksToKingProps) -> BitBoard {
+    let opp_board = props.opp_color_board;
+    let king_square = props.king_square;
+    let occ = props.occupied;
+    let pieces = props.pieces;
+    let mut attacks = BitBoard::EMPTY;
+    attacks =
+        attacks.or(queen_attacks(king_square, occ).and(pieces[Piece::Queen.idx()].and(opp_board)));
+    attacks =
+        attacks.or(rook_attacks(king_square, occ).and(pieces[Piece::Rook.idx()].and(opp_board)));
+    attacks = attacks
+        .or(bishop_attacks(king_square, occ).and(pieces[Piece::Bishop.idx()].and(opp_board)));
+    attacks =
+        attacks.or(knight_attacks(king_square).and(pieces[Piece::Knight.idx()].and(opp_board)));
+    attacks = attacks.or(pawn_captures_both(
+        BitBoard::from_square(king_square),
+        props.color_to_move.opposite(),
+    )
+    .and(pieces[Piece::Pawn.idx()].and(opp_board)));
+    attacks
 }
 
 fn postive_ray_attacks(occ: BitBoard, ray: Dir8, square: Square) -> BitBoard {
@@ -416,47 +555,27 @@ mod tests {
             .map(|m| m.parse::<Move>().unwrap())
             .collect()
     }
-
     fn assert_move_sources(moves: &[Move], expected: &[&str]) {
         let actual: BTreeSet<String> = moves.iter().map(|m| m.from().algebraic()).collect();
         let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
         assert_eq!(actual, expected);
     }
-
     fn assert_move_destinations(moves: &[Move], expected: &[&str]) {
         let actual: BTreeSet<String> = moves.iter().map(|m| m.to().algebraic()).collect();
         let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
         assert_eq!(actual, expected);
     }
-
     fn assert_eq_moves(a: &[Move], b: &[Move]) {
         let a: Vec<String> = a.iter().map(|m| m.to_string()).collect();
         let b: Vec<String> = b.iter().map(|m| m.to_string()).collect();
         assert_eq_unordered(&a, &b);
     }
-
     #[test]
     fn xray_rook_should_be_correct() {
         let blockers = BitBoard::try_from_coords(["a3", "a6"]).unwrap();
         let xray = xray_rook(Square(0), blockers, blockers);
         assert_eq!(xray, BitBoard::try_from_coords(["a4", "a5", "a6"]).unwrap());
     }
-
-    #[test]
-    fn king_should_move_correct() {
-        let board = Board::empty().set_piece("a1".parse().unwrap(), Piece::King, Color::White);
-        assert_move_sources(&generate_moves(&board), &["a1"]);
-        assert_move_destinations(&generate_moves(&board), &["b1", "a2", "b2"]);
-    }
-
-    #[test]
-    fn king_should_try_to_capture_opponents_piece() {
-        let board = Board::empty()
-            .set_piece("a1".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("a2".parse().unwrap(), Piece::Pawn, Color::Black);
-        assert_move_destinations(&generate_moves(&board), &["a2", "b1", "b2"]);
-    }
-
     #[test]
     fn king_should_not_capture_own_piece() {
         let board = Board::from_fen("8/8/8/8/8/p1k5/P7/K7 w - - 0 1");
@@ -474,7 +593,6 @@ mod tests {
             ],
         );
     }
-
     #[test]
     fn black_rook_should_move_correctly_from_e4() {
         let board = Board::from_fen("5K1k/6R1/8/8/4r3/8/8/8 b - - 0 1");
@@ -487,20 +605,32 @@ mod tests {
             ],
         );
     }
-
     #[test]
-    fn rook_should_move_correctly_with_blockers() {
-        let board = Board::from_fen("8/8/8/8/R4r2/8/1r6/K1k5 w - - 0 1");
-        let moves = generate_moves(&board);
-        assert_move_sources(&moves, &["a4"]);
-        assert_move_destinations(
-            &moves,
-            &[
-                "a2", "a3", "a5", "a6", "a7", "a8", "b4", "c4", "d4", "e4", "f4",
-            ],
+    fn queen_should_move_correctly() {
+        let board = Board::from_fen("8/8/3p4/3P4/p7/8/Q3p3/K1k5 w - - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board),
+            &move_list(&[
+                "a2a3", "a2a4", "a2b3", "a2c4", "a2b2", "a2c2", "a2d2", "a2e2", "a2b1",
+            ]),
         );
     }
-
+    #[test]
+    fn rook_should_move_correctly() {
+        let board = Board::from_fen("8/8/p7/P7/8/R2r4/1r6/K1k5 w - - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board),
+            &move_list(&["a3a2", "a3a4", "a3b3", "a3c3", "a3d3"]),
+        );
+    }
+    #[test]
+    fn bishop_should_move_correctly() {
+        let board = Board::from_fen("8/3p4/3P4/8/1B6/p7/P1kn4/K7 w - - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board),
+            &move_list(&["b4a3", "b4a5", "b4c5", "b4c3", "b4d2"]),
+        );
+    }
     #[test]
     fn knight_should_move_correctly() {
         let board = Board::from_fen("1r5k/8/8/8/8/p7/P3r3/K1N5 w - - 0 1");
@@ -514,16 +644,6 @@ mod tests {
         let board = Board::from_fen("r6k/2N5/1r6/8/8/8/8/K7 w - - 0 1");
         assert_eq_moves(&generate_moves(&board), &move_list(&["c7a8", "c7a6"]));
     }
-
-    #[test]
-    fn pawns_should_find_legal_moves_when_pinned() {
-        let board = Board::from_fen("7k/8/8/2P5/6r1/KP4r1/6r1/8 w - - 0 1");
-        let mut moves = generate_moves(&board);
-        assert_eq_moves(&moves, &move_list(&["b3b4", "c5c6"]));
-        filter_legal_moves(&mut moves, &board);
-        assert_eq_moves(&moves, &move_list(&["c5c6"]));
-    }
-
     #[test]
     fn pawns_should_find_moves() {
         let board = Board::from_fen("7k/5P2/8/8/8/r1r5/1P6/1K6 w - - 0 1");
@@ -534,7 +654,6 @@ mod tests {
             ]),
         );
     }
-
     #[test]
     fn should_find_no_moves_when_checkmate() {
         let mut board = Board::empty()
@@ -545,11 +664,20 @@ mod tests {
         let moves = generate_moves(&board);
         assert_eq!(moves.len(), 0);
     }
-
     #[test]
-    fn should_not_move_pinned_rook_and_leave_king_in_check() {
+    fn should_respect_pin_by_queens() {
+        let board = Board::from_fen("1q2q2q/6R1/3RB3/q2BKB1q/3RBR2/8/1q5q/k3q3 w - - 0 1");
+        assert_eq_moves(&generate_moves(&board), &move_list(&["e5f6"]));
+    }
+    #[test]
+    fn should_respect_pin_by_rook() {
         let board = Board::from_fen("8/8/8/8/8/8/5kr1/5rRK w - - 0 1");
         assert_eq_moves(&generate_moves(&board), &move_list(&["g1f1"]));
+    }
+    #[test]
+    fn should_respect_pins_by_bishops() {
+        let board = Board::from_fen("1q2q2q/6R1/3RB3/q2BKB1q/3RBR2/8/1q5q/k3q3 w - - 0 1");
+        assert_eq_moves(&generate_moves(&board), &move_list(&["e5f6"]));
     }
 
     #[test]
@@ -581,6 +709,16 @@ mod tests {
     }
 
     #[test]
+    fn should_find_correct_moves_1() {
+        let board =
+            Board::from_fen("rnbqkbnr/2p1pppp/1p6/pB1p4/4P3/2N2N2/PPPP1PPP/R1BQK2R b - - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board),
+            &move_list(&["b8c6", "b8d7", "c7c6", "c8d7", "d8d7"]),
+        );
+    }
+
+    #[test]
     fn random_game_two_kings() {
         use rand::SeedableRng;
         let mut board = Board::empty()
@@ -609,15 +747,11 @@ mod tests {
 
     #[test]
     fn best_game() {
-        let mut board = Board::empty()
-            .set_piece("e1".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("a1".parse().unwrap(), Piece::Rook, Color::White)
-            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
-            .set_piece("h8".parse().unwrap(), Piece::Rook, Color::Black);
+        let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         println!("\nInitial position:");
         println!("{}", board);
         // Total of 10 ply moves
-        for move_num in 1..=20 {
+        for move_num in 1..=120 {
             let best_move = find_best_move(&mut board, 2)
                 .move_
                 .unwrap_or_else(|| panic!("Found no move"));

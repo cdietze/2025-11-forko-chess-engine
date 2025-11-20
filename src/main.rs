@@ -15,7 +15,7 @@ mod square;
 mod util;
 
 fn main() {
-    let mut board = Board::from_fen("8/8/8/3k4/8/R7/R7/K7 w - - 0 1");
+    let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     println!(
         "Starting position ({} to move):\n{}",
