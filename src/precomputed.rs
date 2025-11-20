@@ -5,13 +5,19 @@ use crate::geometry::Dir8;
 use crate::square::Square;
 
 #[inline]
+pub const fn ray_attacks(square: Square, dir: Dir8) -> BitBoard {
+    RAYS[square.0 as usize][dir.idx()]
+}
+
+#[inline]
 pub const fn king_moves(square: Square) -> BitBoard {
     KING_MOVES[square.0 as usize]
 }
 
 #[inline]
-pub const fn ray_attacks(square: Square, dir: Dir8) -> BitBoard {
-    RAYS[square.0 as usize][dir.idx()]
+pub const fn knight_attacks(square: Square) -> BitBoard {
+    // TODO: actually precompute this
+    compute_knight_attacks(square)
 }
 
 #[inline]
@@ -71,6 +77,19 @@ const fn compute_king_moves(square: Square) -> BitBoard {
     let mut r = b.or(b.shift_east()).or(b.shift_west());
     r = r.or(r.shift_north()).or(r.shift_south());
     r.and(b.not())
+}
+
+const fn compute_knight_attacks(square: Square) -> BitBoard {
+    let b = BitBoard::from_square(square);
+    let nne = b.shift_north().shift_north().shift_east();
+    let nee = b.shift_north().shift_east().shift_east();
+    let see = b.shift_south().shift_east().shift_east();
+    let sse = b.shift_south().shift_south().shift_east();
+    let ssw = b.shift_south().shift_south().shift_west();
+    let sww = b.shift_south().shift_west().shift_west();
+    let nww = b.shift_north().shift_west().shift_west();
+    let nnw = b.shift_north().shift_north().shift_west();
+    nne.or(nee).or(see).or(sse).or(ssw).or(sww).or(nww).or(nnw)
 }
 
 const fn compute_pawn_attacks(
@@ -185,6 +204,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn knight_moves_from_a1_are_correct() {
+        assert_eq!(
+            compute_knight_attacks("a1".parse().unwrap()),
+            bb_from_coords(&["b3", "c2"])
+        );
+    }
+    #[test]
+    fn knight_moves_from_e4_are_correct() {
+        assert_eq!(
+            compute_knight_attacks("e4".parse().unwrap()),
+            bb_from_coords(&["c3", "c5", "d2", "d6", "f2", "f6", "g3", "g5"])
+        );
+    }
+
+    #[test]
+    fn knight_moves_from_h7_are_correct() {
+        assert_eq!(
+            compute_knight_attacks("h7".parse().unwrap()),
+            bb_from_coords(&["f8", "f6", "g5"])
+        );
+    }
     #[test]
     fn white_pawn_attacks_from_d4_are_correct() {
         assert_eq!(

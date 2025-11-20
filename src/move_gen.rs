@@ -3,7 +3,7 @@ use crate::board::Color::White;
 use crate::board::{Board, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
-use crate::precomputed::{king_moves, ray_attacks};
+use crate::precomputed::{king_moves, knight_attacks, ray_attacks};
 use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
@@ -43,31 +43,17 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
             },
             &mut v,
         );
-        println!("generate_moves king_moves: {:?}", v);
-
-        add_rook_moves(
-            AddRookMovesProps {
-                rooks: board.pieces(Piece::Rook, board.color_to_move()),
-                king_square: own_king,
+        add_piece_moves(
+            AddPieceMovesProps {
+                board: &board,
+                own_king,
                 occupied,
                 pinned,
                 to_mask: not_own_pieces_bb,
+                opp_pieces,
             },
             &mut v,
         );
-        println!("generate_moves rook_moves: {:?}", v);
-
-        add_pawn_moves(
-            AddPawnMovesProps {
-                own_pawns: board.pieces(Piece::Pawn, board.color_to_move()),
-                color_to_move: board.color_to_move(),
-                to_mask: not_own_pieces_bb,
-                not_occupied: occupied.not(),
-                attack_targets: opp_pieces, // TODO: add en-passant pawns eventually
-            },
-            &mut v,
-        );
-        println!("generate_moves pawn_moves: {:?}", v);
     } else if num_checks == 1 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         let checking_piece = attacks_to_king.bit_scan_forward();
@@ -84,23 +70,14 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         );
         // To lift the check, the only possible moves are to capture the checking piece or block the checking piece
         let lift_check_mask = attacks_to_king.or(attack_line_bb);
-        add_rook_moves(
-            AddRookMovesProps {
-                rooks: board.pieces(Piece::Rook, board.color_to_move()),
-                king_square: own_king,
+        add_piece_moves(
+            AddPieceMovesProps {
+                board: &board,
+                own_king,
                 occupied,
                 pinned,
-                to_mask: lift_check_mask,
-            },
-            &mut v,
-        );
-        add_pawn_moves(
-            AddPawnMovesProps {
-                own_pawns: board.pieces(Piece::Pawn, board.color_to_move()),
-                color_to_move: board.color_to_move(),
                 to_mask: not_own_pieces_bb.and(lift_check_mask),
-                not_occupied: occupied.not(),
-                attack_targets: opp_pieces, // TODO: add en-passant pawns eventually
+                opp_pieces,
             },
             &mut v,
         );
@@ -120,6 +97,48 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
     v
 }
 
+struct AddPieceMovesProps<'a> {
+    board: &'a Board,
+    own_king: Square,
+    occupied: BitBoard,
+    pinned: BitBoard,
+    to_mask: BitBoard,
+    opp_pieces: BitBoard,
+}
+
+/// Adds any piece moves except for kings.
+fn add_piece_moves(props: AddPieceMovesProps, v: &mut Vec<Move>) {
+    let board = props.board;
+    add_rook_moves(
+        AddRookMovesProps {
+            rooks: board.pieces(Piece::Rook, board.color_to_move()),
+            king_square: props.own_king,
+            occupied: props.occupied,
+            pinned: props.pinned,
+            to_mask: props.to_mask,
+        },
+        v,
+    );
+    add_knight_moves(
+        AddKnightMovesProps {
+            knights: board.pieces(Piece::Knight, board.color_to_move()),
+            occupied: props.occupied,
+            to_mask: props.to_mask,
+        },
+        v,
+    );
+    add_pawn_moves(
+        AddPawnMovesProps {
+            pawns: board.pieces(Piece::Pawn, board.color_to_move()),
+            color_to_move: board.color_to_move(),
+            to_mask: props.to_mask,
+            not_occupied: props.occupied.not(),
+            attack_targets: props.opp_pieces, // TODO: add en-passant pawns eventually
+        },
+        v,
+    );
+}
+
 pub fn filter_legal_moves(moves: &mut Vec<Move>, board: &Board) {
     moves.retain(|&m| {
         let mut b = *board;
@@ -137,13 +156,10 @@ struct AddKingMovesProps {
 
 fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
     let tos = king_moves(props.king_square);
-    // Don't capture own pieces
     let tos = tos.and(props.to_mask);
     // Don't move into check
     let tos = tos.and(props.king_attack_map.not());
-
-    let captures = tos.and(props.occupied);
-    captures.for_each_set_bit(|to_square| {
+    tos.and(props.occupied).for_each_set_bit(|to_square| {
         v.push(Move::new_capture(props.king_square, to_square));
         true
     });
@@ -167,8 +183,7 @@ fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
         if props.pinned.has_square(rook_square) {
             tos = tos.and(line_bb(props.king_square, rook_square))
         }
-        let captures = tos.and(props.occupied);
-        captures.for_each_set_bit(|to_square| {
+        tos.and(props.occupied).for_each_set_bit(|to_square| {
             v.push(Move::new_capture(rook_square, to_square));
             true
         });
@@ -180,8 +195,29 @@ fn add_rook_moves(props: AddRookMovesProps, v: &mut Vec<Move>) {
     });
 }
 
+struct AddKnightMovesProps {
+    knights: BitBoard,
+    occupied: BitBoard,
+    to_mask: BitBoard,
+}
+fn add_knight_moves(props: AddKnightMovesProps, v: &mut Vec<Move>) {
+    props.knights.for_each_set_bit(|knight_square| {
+        let tos = knight_attacks(knight_square);
+        let tos = tos.and(props.to_mask);
+        tos.and(props.occupied).for_each_set_bit(|to_square| {
+            v.push(Move::new_capture(knight_square, to_square));
+            true
+        });
+        tos.and(props.occupied.not()).for_each_set_bit(|to_square| {
+            v.push(Move::new_quiet(knight_square, to_square));
+            true
+        });
+        true
+    });
+}
+
 struct AddPawnMovesProps {
-    own_pawns: BitBoard,
+    pawns: BitBoard,
     color_to_move: Color,
     to_mask: BitBoard,
     not_occupied: BitBoard,
@@ -199,7 +235,7 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         White => -8,
         _ => 8,
     };
-    let single_push = pawn_single_push(props.own_pawns, props.not_occupied, props.color_to_move);
+    let single_push = pawn_single_push(props.pawns, props.not_occupied, props.color_to_move);
     let mut tos = single_push.and(props.to_mask);
     tos.and(promotion_rank).for_each_set_bit(|to_square| {
         let from = Square((to_square.0 as i8 + offset) as u8);
@@ -247,12 +283,12 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         });
     };
     add_pawn_captures(
-        pawn_captures(props.own_pawns, props.color_to_move, true),
+        pawn_captures(props.pawns, props.color_to_move, true),
         offset - 1,
         v,
     );
     add_pawn_captures(
-        pawn_captures(props.own_pawns, props.color_to_move, false),
+        pawn_captures(props.pawns, props.color_to_move, false),
         offset + 1,
         v,
     );
@@ -469,6 +505,20 @@ mod tests {
                 "a2", "a3", "a5", "a6", "a7", "a8", "b4", "c4", "d4", "e4", "f4",
             ],
         );
+    }
+
+    #[test]
+    fn knight_should_move_correctly() {
+        let board = Board::from_fen("1r5k/8/8/8/8/p7/P3r3/K1N5 w - - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board),
+            &move_list(&["c1b3", "c1d3", "c1e2"]),
+        );
+    }
+    #[test]
+    fn knight_should_resolve_check() {
+        let board = Board::from_fen("r6k/2N5/1r6/8/8/8/8/K7 w - - 0 1");
+        assert_eq_moves(&generate_moves(&board), &move_list(&["c7a8", "c7a6"]));
     }
 
     #[test]
