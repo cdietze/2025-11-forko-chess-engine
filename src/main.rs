@@ -24,7 +24,7 @@ fn main() {
     );
 
     // Play up to 20 plies from the given position using the search
-    for ply in 1..=20 {
+    for ply in 1..=100 {
         let result = search::find_best_move(&mut board, 4);
         match result.move_ {
             Some(m) => {

@@ -1,9 +1,10 @@
 use crate::board::Board;
 use crate::eval::eval;
 use crate::r#move::Move;
-use crate::move_gen::{generate_moves, king_attack_map};
+use crate::move_gen::{MoveGenError, generate_moves, king_attack_map};
 use crate::util::with_separator;
 
+const ILLEGAL_POSITION_SCORE: i32 = -1_000_000_000;
 const CHECKMATE_SCORE: i32 = -1_000_000;
 const STALEMATE_SCORE: i32 = 0;
 
@@ -51,7 +52,12 @@ fn nega_max_impl(
     }
     let mut best_score = i32::MIN;
     let mut best_move = None;
-    let moves = generate_moves(board);
+    let moves = match generate_moves(board) {
+        Ok(m) => m,
+        Err(MoveGenError::IllegalPosition) => {
+            return (ILLEGAL_POSITION_SCORE, None);
+        }
+    };
     if moves.is_empty() {
         let opponent_attack_board = king_attack_map(board, board.color_to_move().opposite());
         if opponent_attack_board
