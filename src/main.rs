@@ -1,4 +1,4 @@
-use crate::board::{Board, Color, Piece};
+use crate::board::Board;
 use crate::util::with_separator;
 
 mod bitboard;
@@ -9,6 +9,7 @@ mod fen;
 mod geometry;
 mod r#move;
 mod move_gen;
+mod perft;
 mod precomputed;
 mod search;
 mod square;

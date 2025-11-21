@@ -296,16 +296,12 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         true
     });
     // Double pushes
+    let double_push =
+        pawn_single_push(single_push, props.not_occupied, props.color_to_move).and(props.to_mask);
     tos = if props.color_to_move == White {
-        single_push
-            .shift_north()
-            .and(props.to_mask)
-            .and(BitBoard::RANK_4)
+        double_push.and(BitBoard::RANK_4)
     } else {
-        single_push
-            .shift_south()
-            .and(props.to_mask)
-            .and(BitBoard::RANK_5)
+        double_push.and(BitBoard::RANK_5)
     };
     tos.for_each_set_bit(|to_square| {
         let from = Square((to_square.0 as i8 + offset * 2) as u8);
