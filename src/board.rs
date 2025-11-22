@@ -154,12 +154,16 @@ impl Board {
                 .set(setup.rook_to.0, self.white_to_move);
         }
 
-        if pi == Piece::Pawn.idx() && m.special1() {
-            // Spawn a en passant pawn at the skipped square
+        // Clear the en passant square
+        self.en_passant = Square::ILLEGAL_SQUARE;
+        if pi == Piece::Pawn.idx() && !m.capture() && m.special1() {
+            // This is a double pawn push: Spawn a en passant pawn at the skipped square
             self.en_passant = m.from().add_offset(self.color_to_move().forward_offset());
-        } else {
-            // By default, clear the en passant square
-            self.en_passant = Square::ILLEGAL_SQUARE;
+        } else if m.capture() && m.special1() {
+            // This is a en passant capture, remove the pawn
+            let actual_pawn_square = m.to().add_offset(-self.color_to_move().forward_offset());
+            self.pieces[Piece::Pawn.idx()] =
+                self.pieces[Piece::Pawn.idx()].clear_bit(actual_pawn_square.0);
         }
 
         if pi == Piece::King.idx() {
@@ -371,7 +375,6 @@ impl Default for Board {
 mod tests {
     use crate::board::Board;
     use crate::r#move::Move;
-    use crate::move_gen::generate_moves;
     use crate::precomputed::CastleSide::{KingSide, QueenSide};
     use crate::square::Square;
 
@@ -384,5 +387,13 @@ mod tests {
         let mut board2 = board;
         board2.make_move(Move::new_castle(Square::E1, Square::C1, QueenSide));
         println!("board after queen-side castle:\n{}", board2);
+    }
+
+    #[test]
+    fn en_passant_capture_should_move_pieces_correctly() {
+        let mut board = Board::from_fen("7k/8/7K/8/1p6/8/P7/8 w - - 0 1");
+        board.make_move(Move::new_double_pawn_push(Square::A2, Square::A4));
+        board.make_move(Move::new_en_passant(Square::B4, Square::A3));
+        println!("board after en passant capture:\n{}", board);
     }
 }

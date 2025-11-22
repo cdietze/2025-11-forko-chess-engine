@@ -58,8 +58,8 @@ impl Board {
             _ => board, // keep default if weird; tests only use valid values
         };
 
-        let castling = parts.next().unwrap_or("KQkq");
         // Parse castling rights
+        let castling = parts.next().unwrap_or("KQkq");
         let mut rights = [[false; 2]; 2];
         if castling != "-" {
             for ch in castling.chars() {
@@ -73,6 +73,14 @@ impl Board {
             }
         }
         board.castling_rights = rights;
+
+        // Parse en passant square
+        let ep_field = parts.next().unwrap_or("-");
+        board.en_passant = match ep_field {
+            "-" => Square::ILLEGAL_SQUARE,
+            s => s.parse::<Square>().unwrap_or(Square::ILLEGAL_SQUARE),
+        };
+
         board.normalize();
         board
     }
