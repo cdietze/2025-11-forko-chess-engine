@@ -36,10 +36,17 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_perft_position_2_depth_2() {
         let board =
             Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         assert_eq!(perft(&board, 2), 2039);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_perft_position_2_depth_3() {
+        let board =
+            Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+        assert_eq!(perft(&board, 3), 97862);
     }
 }

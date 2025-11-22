@@ -3,10 +3,7 @@ use crate::board::Color::White;
 use crate::board::{Board, CastlingRights, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
-use crate::precomputed::{
-    CASTLING_SETUPS, CastleSide, CastlingSetup, king_moves, knight_attacks, pawn_attacks,
-    ray_attacks,
-};
+use crate::precomputed::{CASTLING_SETUPS, CastleSide, king_moves, knight_attacks, ray_attacks};
 use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
@@ -181,7 +178,8 @@ fn add_piece_moves(props: AddPieceMovesProps, v: &mut Vec<Move>) {
             color_to_move: board.color_to_move(),
             to_mask: props.to_mask,
             not_occupied: props.occupied.not(),
-            attack_targets: props.opp_pieces, // TODO: add en-passant pawns eventually
+            attack_targets: props.opp_pieces,
+            en_passant: board.en_passant,
         },
         v,
     );
@@ -295,6 +293,7 @@ struct AddPawnMovesProps {
     to_mask: BitBoard,
     not_occupied: BitBoard,
     attack_targets: BitBoard,
+    en_passant: Square,
 }
 
 fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
@@ -304,21 +303,18 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
     };
     let not_promotion_rank = promotion_rank.not();
     // Single pushes
-    let offset: i8 = match props.color_to_move {
-        White => -8,
-        _ => 8,
-    };
+    let forward_offset = props.color_to_move.forward_offset();
     let single_push = pawn_single_push(props.pawns, props.not_occupied, props.color_to_move);
     let mut tos = single_push.and(props.to_mask);
     tos.and(promotion_rank).for_each_set_bit(|to_square| {
-        let from = Square((to_square.0 as i8 + offset) as u8);
+        let from = Square((to_square.0 as i8 - forward_offset) as u8);
         PROMOTION_PIECES.iter().for_each(|p| {
             v.push(Move::new_promotion(from, to_square, false, *p));
         });
         true
     });
     tos.and(not_promotion_rank).for_each_set_bit(|to_square| {
-        let from = Square((to_square.0 as i8 + offset) as u8);
+        let from = Square((to_square.0 as i8 - forward_offset) as u8);
         v.push(Move::new_quiet(from, to_square));
         true
     });
@@ -331,34 +327,39 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         double_push.and(BitBoard::RANK_5)
     };
     tos.for_each_set_bit(|to_square| {
-        let from = Square((to_square.0 as i8 + offset * 2) as u8);
+        let from = Square((to_square.0 as i8 - 2 * forward_offset) as u8);
         v.push(Move::new_double_pawn_push(from, to_square));
         true
     });
     // Add pawn captures
     let add_pawn_captures = |tos: BitBoard, offset: i8, v: &mut Vec<Move>| {
-        let tos = tos.and(props.attack_targets).and(props.to_mask);
-        tos.and(promotion_rank).for_each_set_bit(|to_square| {
+        let tt = tos.and(props.attack_targets).and(props.to_mask);
+        tt.and(promotion_rank).for_each_set_bit(|to_square| {
             let from = Square((to_square.0 as i8 + offset) as u8);
             PROMOTION_PIECES.iter().for_each(|p| {
                 v.push(Move::new_promotion(from, to_square, true, *p));
             });
             true
         });
-        tos.and(not_promotion_rank).for_each_set_bit(|to_square| {
+        tt.and(not_promotion_rank).for_each_set_bit(|to_square| {
             let from = Square((to_square.0 as i8 + offset) as u8);
             v.push(Move::new_capture(from, to_square));
             true
         });
+        // Add en passant captures
+        if props.en_passant.is_legal() && tos.is_set(props.en_passant.0) {
+            let from = Square((props.en_passant.0 as i8 + offset) as u8);
+            v.push(Move::new_en_passant(from, props.en_passant));
+        }
     };
     add_pawn_captures(
         pawn_captures(props.pawns, props.color_to_move, true),
-        offset - 1,
+        -forward_offset - 1,
         v,
     );
     add_pawn_captures(
         pawn_captures(props.pawns, props.color_to_move, false),
-        offset + 1,
+        -forward_offset + 1,
         v,
     );
     // TODO: Add en passant
@@ -756,6 +757,18 @@ mod tests {
                 "a1b1", "a1c1", "a1d1", "a2a3", "a2a4", "e1c1", "e1d1", "e1f1", "e1g1", "h1f1",
                 "h1g1", "h2h3", "h2h4",
             ]),
+        );
+    }
+
+    #[test]
+    fn should_support_en_passant() {
+        let mut board = Board::from_fen("7k/8/7K/8/1p6/8/P7/8 w - - 0 1");
+        println!("board:\n{}", board);
+        board.make_move(Move::new_double_pawn_push(Square::A2, Square::A4));
+        assert_eq!(board.en_passant, Square::A3);
+        assert_eq_moves(
+            &generate_moves(&board).unwrap(),
+            &move_list(&["b4b3", "b4a3", "h8g8"]),
         );
     }
 

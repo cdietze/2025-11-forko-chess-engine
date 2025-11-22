@@ -6,6 +6,10 @@ pub struct Square(pub u8);
 
 impl Square {
     pub const ILLEGAL_SQUARE: Square = Square(64);
+
+    pub fn is_legal(&self) -> bool {
+        self.0 < 64
+    }
     pub fn algebraic(&self) -> String {
         format!("{}", self)
     }
@@ -26,6 +30,10 @@ impl Square {
             rank
         );
         Square(rank * 8 + file)
+    }
+
+    pub fn add_offset(self, offset: i8) -> Square {
+        Square((self.0 as i8 + offset) as u8)
     }
 
     // Indexing: a1 = 0, b1 = 1, ..., h1 = 7, a2 = 8, ..., h8 = 63

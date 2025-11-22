@@ -96,6 +96,11 @@ impl Move {
     }
 
     #[inline]
+    pub const fn new_en_passant(from: Square, to: Square) -> Self {
+        Self::new(from, to, false, true, false, true)
+    }
+
+    #[inline]
     pub const fn new_castle(from: Square, to: Square, castle_side: CastleSide) -> Self {
         let (special0, special1) = match castle_side {
             KingSide => (true, false),

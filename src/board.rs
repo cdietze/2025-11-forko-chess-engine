@@ -1,6 +1,4 @@
 use crate::bitboard::BitBoard;
-use crate::board::Piece::Queen;
-use crate::r#move;
 use crate::r#move::Move;
 use crate::precomputed::CastleSide::{KingSide, QueenSide};
 use crate::precomputed::{CASTLING_SETUPS, CastleSide};
@@ -24,6 +22,13 @@ impl Color {
         match self {
             Color::White => Color::Black,
             Color::Black => Color::White,
+        }
+    }
+    #[inline]
+    pub fn forward_offset(self) -> i8 {
+        match self {
+            Color::White => 8,
+            Color::Black => -8,
         }
     }
 }
@@ -75,9 +80,9 @@ pub struct Board {
     /// One BitBoard per piece type (color is derived via `white`).
     pub pieces: [BitBoard; Piece::COUNT],
     pub white_to_move: bool,
+    /// The square where a e.p. pawn can be captured. Or `Square::ILLEGAL_SQUARE` if no e.p. is possible.
     pub en_passant: Square,
     pub castling_rights: [CastlingRights; Color::COUNT],
-    // TODO: also store: en passant possible?, castling possible?
 }
 
 impl Board {
@@ -149,6 +154,14 @@ impl Board {
                 .set(setup.rook_to.0, self.white_to_move);
         }
 
+        if pi == Piece::Pawn.idx() && m.special1() {
+            // Spawn a en passant pawn at the skipped square
+            self.en_passant = m.from().add_offset(self.color_to_move().forward_offset());
+        } else {
+            // By default, clear the en passant square
+            self.en_passant = Square::ILLEGAL_SQUARE;
+        }
+
         if pi == Piece::King.idx() {
             // After the king has moved, both castling rights for that color are gone
             self.castling_rights[self.color_to_move().idx()] = [false, false];
@@ -163,7 +176,7 @@ impl Board {
                 }
             }
         }
-        if (m.capture()) {
+        if m.capture() {
             // If a rook is captured, castling rights for that castle are lost as well.
             let setups = &CASTLING_SETUPS[self.color_to_move().idx()];
             for setup in setups {
@@ -358,6 +371,7 @@ impl Default for Board {
 mod tests {
     use crate::board::Board;
     use crate::r#move::Move;
+    use crate::move_gen::generate_moves;
     use crate::precomputed::CastleSide::{KingSide, QueenSide};
     use crate::square::Square;
 
