@@ -96,7 +96,8 @@ mod tests {
         let mut board = Board::empty()
             .set_piece("e6".parse().unwrap(), Piece::King, Color::White)
             .set_piece("a6".parse().unwrap(), Piece::Rook, Color::White)
-            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
+            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
+            .normalize();
         let result = super::find_best_move(&mut board, 2);
         assert_eq!(result.move_.unwrap().algebraic(), "a6a8");
     }
@@ -106,7 +107,8 @@ mod tests {
         let mut board = Board::empty()
             .set_piece("b6".parse().unwrap(), Piece::King, Color::White)
             .set_piece("b1".parse().unwrap(), Piece::Rook, Color::White)
-            .set_piece("a8".parse().unwrap(), Piece::King, Color::Black);
+            .set_piece("a8".parse().unwrap(), Piece::King, Color::Black)
+            .normalize();
         let result = super::find_best_move(&mut board, 4);
         assert!(result.score >= -CHECKMATE_SCORE);
     }

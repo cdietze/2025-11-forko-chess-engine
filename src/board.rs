@@ -1,6 +1,9 @@
 use crate::bitboard::BitBoard;
+use crate::board::Piece::Queen;
 use crate::r#move;
 use crate::r#move::Move;
+use crate::precomputed::CastleSide::{KingSide, QueenSide};
+use crate::precomputed::{CASTLING_SETUPS, CastleSide};
 use crate::square::Square;
 
 #[repr(u8)]
@@ -62,6 +65,9 @@ impl Piece {
     }
 }
 
+/// Flags for one side whether castling is allowed or not (kingside, queenside).
+pub type CastlingRights = [bool; CastleSide::COUNT];
+
 #[derive(Copy, Clone, Debug)]
 pub struct Board {
     /// Bitboard of all white pieces on the board, all other squares have black pieces or are empty.
@@ -69,6 +75,8 @@ pub struct Board {
     /// One BitBoard per piece type (color is derived via `white`).
     pub pieces: [BitBoard; Piece::COUNT],
     pub white_to_move: bool,
+    pub en_passant: Square,
+    pub castling_rights: [CastlingRights; Color::COUNT],
     // TODO: also store: en passant possible?, castling possible?
 }
 
@@ -82,6 +90,15 @@ impl Board {
         }
     }
     pub fn make_move(&mut self, m: Move) {
+        // println!("make_move, board:\n{}", self);
+        // println!(
+        //     "make_move: {:?} from: {}({}), to: {}({})",
+        //     m,
+        //     m.from(),
+        //     m.from().0,
+        //     m.to(),
+        //     m.to().0
+        // );
         let from = m.from().0;
         let to = m.to().0;
 
@@ -111,8 +128,53 @@ impl Board {
             self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
         }
 
-        // Update "white" BitBoard
-        self.white = self.white.clear_bit(from).set(to, self.white_to_move);
+        if m.special0() {
+            // It's a castling move. At this point the king has already been moved
+            // by the generic movement code above. We only need to move the rook
+            // and update color bitboards and castling rights.
+            let side: CastleSide = if m.special1() { QueenSide } else { KingSide };
+            let color_idx = self.color_to_move().idx();
+            let setup = &CASTLING_SETUPS[color_idx][side as usize];
+
+            // Move the rook from its original square to the destination square
+            let rook_idx = Piece::Rook.idx();
+            self.pieces[rook_idx] = self.pieces[rook_idx]
+                .clear_bit(setup.rook_from.0)
+                .set_bit(setup.rook_to.0);
+
+            // Update color bitboard for the rook move
+            self.white = self
+                .white
+                .set(setup.rook_from.0, false)
+                .set(setup.rook_to.0, self.white_to_move);
+        }
+
+        if pi == Piece::King.idx() {
+            // After the king has moved, both castling rights for that color are gone
+            self.castling_rights[self.color_to_move().idx()] = [false, false];
+        }
+        if pi == Piece::Rook.idx() {
+            // After the rook has moved, remove castling rights for that castle
+            let setups = &CASTLING_SETUPS[self.color_to_move().idx()];
+            for setup in setups {
+                if setup.rook_from == m.from() {
+                    self.castling_rights[self.color_to_move().idx()][setup.castle_side.idx()] =
+                        false;
+                }
+            }
+        }
+        if (m.capture()) {
+            // If a rook is captured, castling rights for that castle are lost as well.
+            let setups = &CASTLING_SETUPS[self.color_to_move().idx()];
+            for setup in setups {
+                if setup.rook_from == m.to() {
+                    self.castling_rights[self.color_to_move().idx()][setup.castle_side.idx()] =
+                        false;
+                }
+            }
+        }
+        // Update "white" BitBoard: update "to" and "from" does not matter anymore,
+        self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
     }
 
@@ -210,7 +272,46 @@ impl Board {
             white: BitBoard(0),
             pieces: [BitBoard(0); Piece::COUNT],
             white_to_move: true,
+            en_passant: Square::ILLEGAL_SQUARE,
+            castling_rights: [[true; 2]; Color::COUNT],
         }
+    }
+
+    pub fn normalize(mut self) -> Self {
+        let mut rights = self.castling_rights;
+        // Validate castling rights against actual piece placement.
+        // Kings must be on e1/e8 and corresponding rooks on h1/a1/h8/a8.
+        let white_kings = self.pieces(Piece::King, Color::White);
+        let white_rooks = self.pieces(Piece::Rook, Color::White);
+        let black_kings = self.pieces(Piece::King, Color::Black);
+        let black_rooks = self.pieces(Piece::Rook, Color::Black);
+
+        // White kingside: King on E1 and rook on H1
+        if rights[Color::White.idx()][0] {
+            if !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::H1.0)) {
+                rights[Color::White.idx()][0] = false;
+            }
+        }
+        // White queenside: King on E1 and rook on A1
+        if rights[Color::White.idx()][1] {
+            if !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::A1.0)) {
+                rights[Color::White.idx()][1] = false;
+            }
+        }
+        // Black kingside: King on E8 and rook on H8
+        if rights[Color::Black.idx()][0] {
+            if !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::H8.0)) {
+                rights[Color::Black.idx()][0] = false;
+            }
+        }
+        // Black queenside: King on E8 and rook on A8
+        if rights[Color::Black.idx()][1] {
+            if !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::A8.0)) {
+                rights[Color::Black.idx()][1] = false;
+            }
+        }
+        self.castling_rights = rights;
+        self
     }
 }
 
@@ -251,5 +352,23 @@ impl std::fmt::Display for Board {
 impl Default for Board {
     fn default() -> Self {
         Board::empty()
+    }
+}
+
+mod tests {
+    use crate::board::Board;
+    use crate::r#move::Move;
+    use crate::precomputed::CastleSide::{KingSide, QueenSide};
+    use crate::square::Square;
+
+    #[test]
+    fn white_castling_should_move_pieces_correctly() {
+        let board = Board::from_fen("8/8/8/8/8/4k3/P6P/R3K2R w KQ - 0 1");
+        let mut board1 = board;
+        board1.make_move(Move::new_castle(Square::E1, Square::G1, KingSide));
+        println!("board after king-side castle:\n{}", board1);
+        let mut board2 = board;
+        board2.make_move(Move::new_castle(Square::E1, Square::C1, QueenSide));
+        println!("board after queen-side castle:\n{}", board2);
     }
 }

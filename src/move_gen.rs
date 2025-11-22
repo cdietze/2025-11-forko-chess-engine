@@ -1,9 +1,12 @@
 use crate::bitboard::BitBoard;
 use crate::board::Color::White;
-use crate::board::{Board, Color, Piece};
+use crate::board::{Board, CastlingRights, Color, Piece};
 use crate::geometry::{Dir8, between_bb, line_bb};
 use crate::r#move::Move;
-use crate::precomputed::{king_moves, knight_attacks, pawn_attacks, ray_attacks};
+use crate::precomputed::{
+    CASTLING_SETUPS, CastleSide, CastlingSetup, king_moves, knight_attacks, pawn_attacks,
+    ray_attacks,
+};
 use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
@@ -40,12 +43,6 @@ pub fn generate_moves(board: &Board) -> Result<Vec<Move>, MoveGenError> {
     }
     let own_king = Square(board.kings().and(own_color).bit_scan_forward());
     if !own_king.is_valid() {
-        println!("Invalid own king square! {:?}", own_king);
-        println!("Board:\n{}", board);
-        println!("Own color: {:?}", own_color);
-        println!("Occupied: {:?}", occupied);
-        println!("Opp pieces: {:?}", opp_pieces);
-        println!("Own king: {:?}", own_king);
         panic!("Invalid own king square: {:?}", own_king);
     }
     assert!(own_king.is_valid());
@@ -73,14 +70,19 @@ pub fn generate_moves(board: &Board) -> Result<Vec<Move>, MoveGenError> {
     });
 
     let num_checks = attacks_to_king.0.count_ones();
-    // println!("occupied: {:?}", occupied);
-    // println!("opp_pieces: {:?}", opp_pieces);
-    // println!("own_king: {:?}", own_king);
-    // println!("pinned: {:?}", pinned);
-    // println!("king_attack_map: {:?}", king_attack_map);
-    // println!("num_checks: {}", num_checks);
+
     if num_checks == 0 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
+        add_castling_moves(
+            AddCastlingMovesProps {
+                king_square: own_king,
+                side_to_move: board.color_to_move(),
+                occupied,
+                king_attack_map,
+                castling_rights: board.castling_rights[board.color_to_move().idx()],
+            },
+            &mut v,
+        );
         add_king_moves(
             AddKingMovesProps {
                 king_square: own_king,
@@ -202,6 +204,31 @@ fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
         v.push(Move::new_quiet(props.king_square, to_square));
         true
     });
+}
+
+struct AddCastlingMovesProps {
+    king_square: Square,
+    side_to_move: Color,
+    occupied: BitBoard,
+    king_attack_map: BitBoard,
+    castling_rights: CastlingRights,
+}
+fn add_castling_moves(props: AddCastlingMovesProps, v: &mut Vec<Move>) {
+    let setups = &CASTLING_SETUPS[props.side_to_move.idx()];
+
+    for side in CastleSide::ALL {
+        if !props.castling_rights[side.idx()] {
+            continue;
+        }
+        let setup = &setups[side.idx()];
+        if setup.safe_squares.and(props.king_attack_map).is_not_empty() {
+            continue;
+        }
+        if setup.empty_squares.and(props.occupied).is_not_empty() {
+            continue;
+        }
+        v.push(Move::new_castle(setup.king_from, setup.king_to, side));
+    }
 }
 
 struct AddSlidingPiecesMovesProps {
@@ -721,6 +748,18 @@ mod tests {
     }
 
     #[test]
+    fn white_castling_moves_should_be_found() {
+        let board = Board::from_fen("8/8/8/8/8/4k3/P6P/R3K2R w KQ - 0 1");
+        assert_eq_moves(
+            &generate_moves(&board).unwrap(),
+            &move_list(&[
+                "a1b1", "a1c1", "a1d1", "a2a3", "a2a4", "e1c1", "e1d1", "e1f1", "e1g1", "h1f1",
+                "h1g1", "h2h3", "h2h4",
+            ]),
+        );
+    }
+
+    #[test]
     fn should_find_correct_moves_1() {
         let board =
             Board::from_fen("rnbqkbnr/2p1pppp/1p6/pB1p4/4P3/2N2N2/PPPP1PPP/R1BQK2R b - - 0 1");
@@ -733,9 +772,7 @@ mod tests {
     #[test]
     fn random_game_two_kings() {
         use rand::SeedableRng;
-        let mut board = Board::empty()
-            .set_piece("e1".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black);
+        let mut board = Board::from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
         println!("\nInitial position:");
         println!("{}", board);
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);

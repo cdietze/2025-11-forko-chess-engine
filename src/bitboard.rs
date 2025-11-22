@@ -17,12 +17,15 @@ impl BitBoard {
     }
 
     /// Creates a BitBoard from multiple square indices by combining them with OR operations
-    pub fn from_squares(squares: impl IntoIterator<Item = Square>) -> Self {
-        squares
-            .into_iter()
-            .fold(BitBoard::EMPTY, |acc, sq| acc.or(Self::from_square(sq)))
+    pub const fn from_squares(squares: &[Square]) -> Self {
+        let mut acc = BitBoard::EMPTY;
+        let mut i = 0;
+        while i < squares.len() {
+            acc = acc.or(Self::from_square(squares[i]));
+            i += 1;
+        }
+        acc
     }
-
     /// Tries to create a BitBoard from coordinate strings like "a1", "e5", "f3".
     ///
     /// Returns an error if any coordinate is invalid.
@@ -69,13 +72,6 @@ impl fmt::Debug for BitBoard {
         // Start on a fresh line in debug output (used e.g. by assert_eq!)
         writeln!(f)?;
         core::fmt::Display::fmt(self, f)
-    }
-}
-
-/// Allow collecting from an iterator of `Square` into a `BitBoard`.
-impl FromIterator<Square> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = Square>>(iter: T) -> Self {
-        BitBoard::from_squares(iter)
     }
 }
 

@@ -23,17 +23,23 @@ mod tests {
             }
             nodes
         }
-        foo(board, depth, depth)
+        let nodes = foo(board, depth, depth);
+        println!("Node count at depth {:?}: {}", depth, nodes);
+        nodes
     }
 
     /// https://www.chessprogramming.org/Perft_Results
     #[test]
     fn test_perft_initial_position_depth_4() {
-        println!("Running perft tests...");
-
         let board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        let perft_nodes = perft(&board, 4);
-        println!("Perft nodes at depth 4: {}", perft_nodes);
-        assert_eq!(perft_nodes, 197_281);
+        assert_eq!(perft(&board, 4), 197_281);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_perft_position_2_depth_2() {
+        let board =
+            Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+        assert_eq!(perft(&board, 2), 2039);
     }
 }

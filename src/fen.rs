@@ -58,6 +58,22 @@ impl Board {
             _ => board, // keep default if weird; tests only use valid values
         };
 
+        let castling = parts.next().unwrap_or("KQkq");
+        // Parse castling rights
+        let mut rights = [[false; 2]; 2];
+        if castling != "-" {
+            for ch in castling.chars() {
+                match ch {
+                    'K' => rights[Color::White.idx()][0] = true, // White kingside
+                    'Q' => rights[Color::White.idx()][1] = true, // White queenside
+                    'k' => rights[Color::Black.idx()][0] = true, // Black kingside
+                    'q' => rights[Color::Black.idx()][1] = true, // Black queenside
+                    _ => { /* ignore unexpected tokens to stay permissive */ }
+                }
+            }
+        }
+        board.castling_rights = rights;
+        board.normalize();
         board
     }
 

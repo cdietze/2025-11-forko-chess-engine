@@ -26,6 +26,80 @@ pub const fn pawn_attacks(square: Square, color_to_move: Color, capture_east: bo
     compute_pawn_attacks(square, color_to_move, capture_east)
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum CastleSide {
+    KingSide = 0,
+    QueenSide = 1,
+}
+
+impl CastleSide {
+    pub const COUNT: usize = 2;
+    pub const ALL: [Self; Self::COUNT] = [Self::KingSide, Self::QueenSide];
+
+    #[inline]
+    pub const fn idx(self) -> usize {
+        self as usize
+    }
+}
+
+pub struct CastlingSetup {
+    pub castle_side: CastleSide,
+    pub king_from: Square,
+    pub king_to: Square,
+    pub rook_from: Square,
+    pub rook_to: Square,
+    pub safe_squares: BitBoard,
+    pub empty_squares: BitBoard,
+}
+
+pub const CASTLING_SETUPS: [[CastlingSetup; CastleSide::COUNT]; Color::COUNT] = [
+    [
+        // White O-O
+        CastlingSetup {
+            castle_side: CastleSide::KingSide,
+            king_from: Square::E1,
+            king_to: Square::G1,
+            rook_from: Square::H1,
+            rook_to: Square::F1,
+            safe_squares: BitBoard::from_squares(&[Square::E1, Square::F1, Square::G1]),
+            empty_squares: BitBoard::from_squares(&[Square::F1, Square::G1]),
+        },
+        // White O-O-O
+        CastlingSetup {
+            castle_side: CastleSide::QueenSide,
+            king_from: Square::E1,
+            king_to: Square::C1,
+            rook_from: Square::A1,
+            rook_to: Square::D1,
+            safe_squares: BitBoard::from_squares(&[Square::E1, Square::D1, Square::C1]),
+            empty_squares: BitBoard::from_squares(&[Square::B1, Square::C1, Square::D1]),
+        },
+    ],
+    [
+        // Black O-O
+        CastlingSetup {
+            castle_side: CastleSide::KingSide,
+            king_from: Square::E8,
+            king_to: Square::G8,
+            rook_from: Square::H8,
+            rook_to: Square::F8,
+            safe_squares: BitBoard::from_squares(&[Square::E8, Square::F8, Square::G8]),
+            empty_squares: BitBoard::from_squares(&[Square::F8, Square::G8]),
+        },
+        // Black O-O-O
+        CastlingSetup {
+            castle_side: CastleSide::QueenSide,
+            king_from: Square::E8,
+            king_to: Square::C8,
+            rook_from: Square::A8,
+            rook_to: Square::D8,
+            safe_squares: BitBoard::from_squares(&[Square::E8, Square::D8, Square::C8]),
+            empty_squares: BitBoard::from_squares(&[Square::B8, Square::C8, Square::D8]),
+        },
+    ],
+];
+
 const KING_MOVES: [BitBoard; 64] = {
     let mut arr = [BitBoard::EMPTY; 64];
     let mut i: u8 = 0;

@@ -1,4 +1,6 @@
 use crate::board::Piece;
+use crate::precomputed::CastleSide;
+use crate::precomputed::CastleSide::KingSide;
 use crate::square::Square;
 
 /// Encodes a chess move into a compact 16-bit value.
@@ -30,6 +32,8 @@ impl Move {
 
     const PROMOTION_SHIFT: u16 = Self::FLAG_SHIFT;
     const CAPTURE_SHIFT: u16 = Self::FLAG_SHIFT + 1;
+    const SPECIAL_0_SHIFT: u16 = Self::CAPTURE_SHIFT + 1;
+    const SPECIAL_1_SHIFT: u16 = Self::SPECIAL_0_SHIFT + 1;
 
     const FROM_MASK: u16 = (1u16 << Self::FROM_BITS) - 1; // 0x3F
     const TO_MASK: u16 = (1u16 << Self::TO_BITS) - 1; // 0x3F
@@ -91,6 +95,15 @@ impl Move {
         Self::new(from, to, true, capture, special0, special1)
     }
 
+    #[inline]
+    pub const fn new_castle(from: Square, to: Square, castle_side: CastleSide) -> Self {
+        let (special0, special1) = match castle_side {
+            KingSide => (true, false),
+            _ => (true, true),
+        };
+        Self::new(from, to, false, false, special0, special1)
+    }
+
     /// Creates a move from raw indices (0..=63). Extra bits are masked.
     #[inline]
     pub const fn from_indices(from: u8, to: u8) -> Self {
@@ -128,6 +141,15 @@ impl Move {
     #[inline]
     pub const fn promotion(self) -> bool {
         (self.0 & (1u16 << Self::PROMOTION_SHIFT)) != 0
+    }
+    #[inline]
+    pub const fn special0(self) -> bool {
+        (self.0 & (1u16 << Self::SPECIAL_0_SHIFT)) != 0
+    }
+
+    #[inline]
+    pub const fn special1(self) -> bool {
+        (self.0 & (1u16 << Self::SPECIAL_1_SHIFT)) != 0
     }
 
     /// If this is a promotion move, returns the encoded piece to promote to.
