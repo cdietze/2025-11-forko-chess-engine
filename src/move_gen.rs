@@ -362,7 +362,6 @@ fn add_pawn_moves(props: AddPawnMovesProps, v: &mut Vec<Move>) {
         -forward_offset + 1,
         v,
     );
-    // TODO: Add en passant
 }
 
 #[inline]

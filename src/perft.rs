@@ -48,4 +48,13 @@ mod tests {
             Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         assert_eq!(perft(&board, 3), 97862);
     }
+
+    #[test]
+    /// it takes too long, about 10 seconds
+    #[ignore]
+    fn test_perft_position_2_depth_4() {
+        let board =
+            Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+        assert_eq!(perft(&board, 4), 4085603);
+    }
 }

@@ -182,11 +182,11 @@ impl Board {
         }
         if m.capture() {
             // If a rook is captured, castling rights for that castle are lost as well.
-            let setups = &CASTLING_SETUPS[self.color_to_move().idx()];
+            let opp_color = self.color_to_move().opposite();
+            let setups = &CASTLING_SETUPS[opp_color.idx()];
             for setup in setups {
                 if setup.rook_from == m.to() {
-                    self.castling_rights[self.color_to_move().idx()][setup.castle_side.idx()] =
-                        false;
+                    self.castling_rights[opp_color.idx()][setup.castle_side.idx()] = false;
                 }
             }
         }
