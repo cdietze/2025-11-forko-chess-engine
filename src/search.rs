@@ -93,22 +93,21 @@ mod tests {
 
     #[test]
     fn should_find_mate_in_1() {
-        let mut board = Board::empty()
-            .set_piece("e6".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("a6".parse().unwrap(), Piece::Rook, Color::White)
-            .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
-            .normalize();
+        let mut board = Board::from_fen("4k3/8/R3K3/8/8/8/8/8 w - - 0 1");
         let result = super::find_best_move(&mut board, 2);
         assert_eq!(result.move_.unwrap().algebraic(), "a6a8");
     }
 
     #[test]
     fn should_find_mate_in_2() {
-        let mut board = Board::empty()
-            .set_piece("b6".parse().unwrap(), Piece::King, Color::White)
-            .set_piece("b1".parse().unwrap(), Piece::Rook, Color::White)
-            .set_piece("a8".parse().unwrap(), Piece::King, Color::Black)
-            .normalize();
+        let mut board = Board::from_fen("k7/8/1K6/8/8/8/8/1R6 w - - 0 1");
+        let result = super::find_best_move(&mut board, 4);
+        assert!(result.score >= -CHECKMATE_SCORE);
+    }
+
+    #[test]
+    fn should_find_mate_in_2_for_black() {
+        let mut board = Board::from_fen("K7/8/1k6/8/8/8/8/1r6 b - - 0 1");
         let result = super::find_best_move(&mut board, 4);
         assert!(result.score >= -CHECKMATE_SCORE);
     }
