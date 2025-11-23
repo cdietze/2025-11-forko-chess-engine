@@ -223,7 +223,7 @@ fn apply_position_command<'a>(
 
 fn apply_one_move_token(board: &mut Board, token: &str) -> Result<(), String> {
     // Generate legal moves and find the one that matches the UCI token.
-    let moves = generate_moves(board).map_err(|_| "illegal position during moves".to_string())?;
+    let moves = generate_moves(board);
     for m in moves {
         if token_matches_uci_move(token, m) {
             board.make_move(m);

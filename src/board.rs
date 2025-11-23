@@ -1,5 +1,6 @@
 use crate::bitboard::BitBoard;
 use crate::r#move::Move;
+use crate::move_gen::is_legal;
 use crate::precomputed::CastleSide::{KingSide, QueenSide};
 use crate::precomputed::{CASTLING_SETUPS, CastleSide};
 use crate::square::Square;
@@ -94,7 +95,7 @@ impl Board {
             Color::Black
         }
     }
-    pub fn make_move(&mut self, m: Move) {
+    pub fn make_move(&mut self, m: Move) -> Result<(), String> {
         // println!("make_move, board:\n{}", self);
         // println!(
         //     "make_move: {:?} from: {}({}), to: {}({})",
@@ -193,6 +194,10 @@ impl Board {
         // Update "white" BitBoard: update "to" and "from" does not matter anymore,
         self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
+        if (!is_legal(self)) {
+            return Err("Illegal move".to_string());
+        }
+        Ok(())
     }
 
     pub fn unmake_move(&mut self, m: Move, irreversible_stuff: String) {

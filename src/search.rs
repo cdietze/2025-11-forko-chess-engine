@@ -52,12 +52,7 @@ fn nega_max_impl(
     }
     let mut best_score = i32::MIN;
     let mut best_move = None;
-    let moves = match generate_moves(board) {
-        Ok(m) => m,
-        Err(MoveGenError::IllegalPosition) => {
-            return (ILLEGAL_POSITION_SCORE, None);
-        }
-    };
+    let moves = generate_moves(board);
     if moves.is_empty() {
         let opponent_attack_board = king_attack_map(board, board.color_to_move().opposite());
         if opponent_attack_board
@@ -72,7 +67,10 @@ fn nega_max_impl(
     for m in moves {
         // TODO: Don't clone board but use unmake_move
         let mut b = *board;
-        b.make_move(m);
+        let r = b.make_move(m);
+        if r.is_err() {
+            continue;
+        }
         let score = -nega_max_impl(&mut b, depth - 1, info, false).0;
         if score > best_score {
             best_score = score;

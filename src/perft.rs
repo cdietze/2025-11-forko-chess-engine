@@ -4,17 +4,17 @@ mod tests {
 
     fn perft(board: &Board, depth: u8) -> u64 {
         fn foo(b: &Board, d: u8, initial_depth: u8) -> u64 {
-            let Ok(moves) = generate_moves(b) else {
-                return 0;
-            };
             if d == 0 {
                 return 1;
             }
+            let moves = generate_moves(b);
             let mut nodes = 0u64;
             for m in moves {
                 // TODO: Don't clone board but use unmake_move
                 let mut bb = *b;
-                bb.make_move(m);
+                if bb.make_move(m).is_err() {
+                    continue;
+                }
                 let n = foo(&bb, d - 1, initial_depth);
                 if d == initial_depth {
                     println!("{:?}: {}", m, n);
@@ -50,11 +50,15 @@ mod tests {
     }
 
     #[test]
-    /// it takes too long, about 10 seconds
-    #[ignore]
     fn test_perft_position_2_depth_4() {
         let board =
             Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         assert_eq!(perft(&board, 4), 4085603);
+    }
+
+    #[test]
+    fn test_perft_position_3_depth_6() {
+        let board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
+        assert_eq!(perft(&board, 6), 11030083);
     }
 }

@@ -14,7 +14,7 @@ pub enum MoveGenError {
 }
 
 /// Generates a list of *pseudo-legal* moves from given board.
-pub fn generate_moves(board: &Board) -> Result<Vec<Move>, MoveGenError> {
+pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
 
     let own_color: BitBoard = if board.white_to_move {
@@ -22,22 +22,8 @@ pub fn generate_moves(board: &Board) -> Result<Vec<Move>, MoveGenError> {
     } else {
         board.white.not()
     };
-    let opp_color: BitBoard = own_color.not();
     let occupied = board.occupied();
     let opp_pieces: BitBoard = occupied.and(own_color.not());
-    let opp_king = Square(board.kings().and(opp_color).bit_scan_forward());
-    let attacks_to_opp_king = attacks_to_king(AttacksToKingProps {
-        king_square: opp_king,
-        color_to_move: board.color_to_move().opposite(),
-        occupied,
-        opp_color_board: own_color,
-        pieces: board.pieces,
-    });
-    if attacks_to_opp_king.is_not_empty() {
-        // Opponent king is currently in check in the given position, which should
-        // not happen for a legal game position after a legal move.
-        return Err(MoveGenError::IllegalPosition);
-    }
     let own_king = Square(board.kings().and(own_color).bit_scan_forward());
     if !own_king.is_valid() {
         panic!("Invalid own king square: {:?}", own_king);
@@ -137,7 +123,31 @@ pub fn generate_moves(board: &Board) -> Result<Vec<Move>, MoveGenError> {
             &mut v,
         );
     }
-    Ok(v)
+    v
+}
+
+pub fn is_legal(board: &Board) -> bool {
+    let own_color: BitBoard = if board.white_to_move {
+        board.white
+    } else {
+        board.white.not()
+    };
+    let opp_color: BitBoard = own_color.not();
+    let occupied = board.occupied();
+    let opp_king = Square(board.kings().and(opp_color).bit_scan_forward());
+    let attacks_to_opp_king = attacks_to_king(AttacksToKingProps {
+        king_square: opp_king,
+        color_to_move: board.color_to_move().opposite(),
+        occupied,
+        opp_color_board: own_color,
+        pieces: board.pieces,
+    });
+    if attacks_to_opp_king.is_not_empty() {
+        // Opponent king is currently in check in the given position, which should
+        // not happen for a legal game position after a legal move.
+        return false;
+    }
+    true
 }
 
 struct AddPieceMovesProps<'a> {
@@ -609,12 +619,12 @@ mod tests {
     #[test]
     fn king_should_not_capture_own_piece() {
         let board = Board::from_fen("8/8/8/8/8/p1k5/P7/K7 w - - 0 1");
-        assert_eq_moves(&generate_moves(&board).unwrap(), &move_list(&["a1b1"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["a1b1"]));
     }
     #[test]
     fn rook_should_move_correctly_from_a1() {
         let board = Board::from_fen("5k1K/6r1/8/8/8/8/8/R7 w - - 0 1");
-        let moves = generate_moves(&board).unwrap();
+        let moves = generate_moves(&board);
         assert_move_sources(&moves, &["a1"]);
         assert_move_destinations(
             &moves,
@@ -626,7 +636,7 @@ mod tests {
     #[test]
     fn black_rook_should_move_correctly_from_e4() {
         let board = Board::from_fen("5K1k/6R1/8/8/4r3/8/8/8 b - - 0 1");
-        let moves = generate_moves(&board).unwrap();
+        let moves = generate_moves(&board);
         assert_move_sources(&moves, &["e4"]);
         assert_move_destinations(
             &moves,
@@ -639,7 +649,7 @@ mod tests {
     fn queen_should_move_correctly() {
         let board = Board::from_fen("8/8/3p4/3P4/p7/8/Q3p3/K1k5 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&[
                 "a2a3", "a2a4", "a2b3", "a2c4", "a2b2", "a2c2", "a2d2", "a2e2", "a2b1",
             ]),
@@ -649,7 +659,7 @@ mod tests {
     fn rook_should_move_correctly() {
         let board = Board::from_fen("8/8/p7/P7/8/R2r4/1r6/K1k5 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["a3a2", "a3a4", "a3b3", "a3c3", "a3d3"]),
         );
     }
@@ -657,7 +667,7 @@ mod tests {
     fn bishop_should_move_correctly() {
         let board = Board::from_fen("8/3p4/3P4/8/1B6/p7/P1kn4/K7 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["b4a3", "b4a5", "b4c5", "b4c3", "b4d2"]),
         );
     }
@@ -665,23 +675,20 @@ mod tests {
     fn knight_should_move_correctly() {
         let board = Board::from_fen("1r5k/8/8/8/8/p7/P3r3/K1N5 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["c1b3", "c1d3", "c1e2"]),
         );
     }
     #[test]
     fn knight_should_resolve_check() {
         let board = Board::from_fen("r6k/2N5/1r6/8/8/8/8/K7 w - - 0 1");
-        assert_eq_moves(
-            &generate_moves(&board).unwrap(),
-            &move_list(&["c7a8", "c7a6"]),
-        );
+        assert_eq_moves(&generate_moves(&board), &move_list(&["c7a8", "c7a6"]));
     }
     #[test]
     fn pawns_should_find_moves() {
         let board = Board::from_fen("7k/5P2/8/8/8/r1r5/1P6/1K6 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&[
                 "b2b3", "b2b4", "b2a3", "b2c3", "f7f8=Q", "f7f8=N", "f7f8=R", "f7f8=B",
             ]),
@@ -694,46 +701,43 @@ mod tests {
             .set_piece("a8".parse().unwrap(), Piece::Rook, Color::White)
             .set_piece("e8".parse().unwrap(), Piece::King, Color::Black)
             .set_color_to_move(Color::Black);
-        let moves = generate_moves(&board).unwrap();
+        let moves = generate_moves(&board);
         assert_eq!(moves.len(), 0);
     }
     #[test]
     fn should_respect_pin_by_queens() {
         let board = Board::from_fen("1q2q2q/6R1/3RB3/q2BKB1q/3RBR2/8/1q5q/k3q3 w - - 0 1");
-        assert_eq_moves(&generate_moves(&board).unwrap(), &move_list(&["e5f6"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["e5f6"]));
     }
     #[test]
     fn should_respect_pin_by_rook() {
         let board = Board::from_fen("8/8/8/8/8/8/5kr1/5rRK w - - 0 1");
-        assert_eq_moves(&generate_moves(&board).unwrap(), &move_list(&["g1f1"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["g1f1"]));
     }
     #[test]
     fn should_respect_pins_by_bishops() {
         let board = Board::from_fen("1q2q2q/6R1/3RB3/q2BKB1q/3RBR2/8/1q5q/k3q3 w - - 0 1");
-        assert_eq_moves(&generate_moves(&board).unwrap(), &move_list(&["e5f6"]));
+        assert_eq_moves(&generate_moves(&board), &move_list(&["e5f6"]));
     }
 
     #[test]
     fn when_in_check_should_evade() {
         let board = Board::from_fen("7k/8/8/8/1R6/8/8/Kr6 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["a1a2", "a1b1", "b4b1"]),
         );
     }
     #[test]
     fn when_in_check_should_block() {
         let board = Board::from_fen("7k/8/8/8/8/8/1R6/K1r5 w - - 0 1");
-        assert_eq_unordered(
-            &generate_moves(&board).unwrap(),
-            &move_list(&["a1a2", "b2b1"]),
-        );
+        assert_eq_unordered(&generate_moves(&board), &move_list(&["a1a2", "b2b1"]));
     }
     #[test]
     fn should_solve_king_check_position() {
         let board = Board::from_fen("7k/8/8/8/1RR5/8/8/K1r3R1 w - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["a1a2", "a1b2", "b4b1", "c4c1", "g1c1"]),
         );
     }
@@ -741,17 +745,14 @@ mod tests {
     #[test]
     fn should_solve_double_check_position() {
         let board = Board::from_fen("7k/3r2R1/8/8/5R2/8/8/3K2r1 w - - 0 1");
-        assert_eq_moves(
-            &generate_moves(&board).unwrap(),
-            &move_list(&["d1c2", "d1e2"]),
-        );
+        assert_eq_moves(&generate_moves(&board), &move_list(&["d1c2", "d1e2"]));
     }
 
     #[test]
     fn white_castling_moves_should_be_found() {
         let board = Board::from_fen("8/8/8/8/8/4k3/P6P/R3K2R w KQ - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&[
                 "a1b1", "a1c1", "a1d1", "a2a3", "a2a4", "e1c1", "e1d1", "e1f1", "e1g1", "h1f1",
                 "h1g1", "h2h3", "h2h4",
@@ -766,7 +767,7 @@ mod tests {
         board.make_move(Move::new_double_pawn_push(Square::A2, Square::A4));
         assert_eq!(board.en_passant, Square::A3);
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["b4b3", "b4a3", "h8g8"]),
         );
     }
@@ -776,7 +777,7 @@ mod tests {
         let board =
             Board::from_fen("rnbqkbnr/2p1pppp/1p6/pB1p4/4P3/2N2N2/PPPP1PPP/R1BQK2R b - - 0 1");
         assert_eq_moves(
-            &generate_moves(&board).unwrap(),
+            &generate_moves(&board),
             &move_list(&["b8c6", "b8d7", "c7c6", "c8d7", "d8d7"]),
         );
     }
@@ -790,7 +791,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
         // Total of 10 ply moves
         for move_num in 1..=10 {
-            let moves = generate_moves(&board).unwrap();
+            let moves = generate_moves(&board);
             println!("Pseudo-Legal Moves: {:?}", moves);
             if let Some(white_move) = moves.choose(&mut rng) {
                 println!(
