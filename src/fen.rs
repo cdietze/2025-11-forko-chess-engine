@@ -1,6 +1,9 @@
 use crate::board::{Board, Color, Piece};
 use crate::square::Square;
 
+/// Standard chess initial position (FEN)
+pub const STARTPOS_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 /// https://www.chessprogramming.org/Forsyth-Edwards_Notation
 /// Very small, permissive parser sufficient for our tests:
 /// - Parses piece placement and side to move

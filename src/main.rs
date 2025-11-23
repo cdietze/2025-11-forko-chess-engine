@@ -1,6 +1,3 @@
-use crate::board::Board;
-use crate::util::with_separator;
-
 mod bitboard;
 mod bitboard_ops;
 mod board;
@@ -13,8 +10,10 @@ mod perft;
 mod precomputed;
 mod search;
 mod square;
+mod uci;
 mod util;
 
 fn main() {
-    todo!("implement UCI protocol here")
+    // Delegate to the UCI loop implemented in a separate, extensible module.
+    uci::run();
 }
