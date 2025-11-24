@@ -781,6 +781,12 @@ mod tests {
             &move_list(&["b8c6", "b8d7", "c7c6", "c8d7", "d8d7"]),
         );
     }
+    #[test]
+    fn case_2() {
+        let mut board = Board::from_fen("r1b1r3/pp1pkppP/2npp3/8/3P4/2P1NN2/PP4R1/R6K w - - 1 3");
+        find_best_move(&mut board, 2);
+        // should not panic!
+    }
 
     #[test]
     fn random_game_two_kings() {

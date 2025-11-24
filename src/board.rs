@@ -134,7 +134,7 @@ impl Board {
             self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
         }
 
-        if m.special0() {
+        if !m.promotion() && m.special0() {
             // It's a castling move. At this point the king has already been moved
             // by the generic movement code above. We only need to move the rook
             // and update color bitboards and castling rights.
