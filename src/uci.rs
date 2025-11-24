@@ -85,7 +85,36 @@ impl UciEngine {
     }
 
     fn handle_uci(&mut self) {
-        println!("id name 2025-11-chess");
+        // Compose a descriptive engine name including build/version info.
+        let mut name = String::from("2025-11-chess");
+        let mut parts: Vec<String> = Vec::new();
+
+        if let Some(tag) = option_env!("BUILD_GIT_TAG") {
+            if !tag.is_empty() {
+                parts.push(format!("tag {}", tag));
+            }
+        }
+        if let Some(commit) = option_env!("BUILD_GIT_COMMIT") {
+            if !commit.is_empty() {
+                parts.push(format!("commit {}", commit));
+            }
+        }
+        if parts.is_empty() {
+            // Fallback to Cargo package version if available.
+            let pkg_ver = option_env!("CARGO_PKG_VERSION").unwrap_or("");
+            if !pkg_ver.is_empty() {
+                parts.push(pkg_ver.to_string());
+            }
+        }
+
+        if !parts.is_empty() {
+            name.push(' ');
+            name.push('(');
+            name.push_str(&parts.join(", "));
+            name.push(')');
+        }
+
+        println!("id name {}", name);
         println!("id author Christoph");
         // Options could be printed here later.
         println!("uciok");
