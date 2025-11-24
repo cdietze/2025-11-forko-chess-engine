@@ -368,6 +368,31 @@ impl std::fmt::Display for Board {
             writeln!(f, "  +---+---+---+---+---+---+---+---+")?;
         }
         writeln!(f, "    a   b   c   d   e   f   g   h")?;
+
+        let fmt_castling = |color: Color| -> String {
+            let rights = &self.castling_rights[color.idx()];
+            let mut options: Vec<&str> = Vec::new();
+            if rights[KingSide.idx()] {
+                options.push("O-O");
+            }
+            if rights[QueenSide.idx()] {
+                options.push("O-O-O");
+            }
+            if options.is_empty() {
+                "none".to_string()
+            } else {
+                options.join(" ")
+            }
+        };
+        writeln!(f, "Castling white: {}", fmt_castling(Color::White))?;
+        writeln!(f, "Castling black: {}", fmt_castling(Color::Black))?;
+        write!(f, "En passant: ")?;
+        if self.en_passant == Square::ILLEGAL_SQUARE {
+            writeln!(f, "none")?;
+        } else {
+            writeln!(f, "{}", self.en_passant)?;
+        }
+        writeln!(f, "Side to move: {}", self.color_to_move())?;
         Ok(())
     }
 }
@@ -379,7 +404,7 @@ impl Default for Board {
 }
 
 mod tests {
-    use crate::board::Board;
+    use crate::board::{Board, Color, Piece};
     use crate::r#move::Move;
     use crate::precomputed::CastleSide::{KingSide, QueenSide};
     use crate::square::Square;
@@ -401,5 +426,22 @@ mod tests {
         board.make_move(Move::new_double_pawn_push(Square::A2, Square::A4));
         board.make_move(Move::new_en_passant(Square::B4, Square::A3));
         println!("board after en passant capture:\n{}", board);
+    }
+
+    #[test]
+    fn promotion_should_work() {
+        let mut board = Board::from_fen("5k1K/2P5/8/8/8/8/8/8 w - - 0 1");
+        let r = board.make_move(Move::new_promotion(
+            Square::C7,
+            Square::C8,
+            false,
+            Piece::Queen,
+        ));
+        assert_eq!(
+            board
+                .pieces(Piece::Queen, Color::White)
+                .is_set(Square::C8.0),
+            true
+        );
     }
 }

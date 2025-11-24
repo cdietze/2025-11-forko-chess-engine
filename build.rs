@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     // Attempt to get the latest git tag
-    let git_tag = run(&["git", "describe", "--tags", "--abbrev=0"]) 
+    let git_tag = run(&["git", "describe", "--tags", "--abbrev=0"])
         .or_else(|| run(&["git", "describe", "--tags", "--always"]))
         .unwrap_or_default();
 
@@ -22,10 +22,14 @@ fn main() {
 }
 
 fn run(cmd: &[&str]) -> Option<String> {
-    if cmd.is_empty() { return None; }
+    if cmd.is_empty() {
+        return None;
+    }
     let (prog, args) = cmd.split_first().unwrap();
     let out = Command::new(prog).args(args).output().ok()?;
-    if !out.status.success() { return None; }
+    if !out.status.success() {
+        return None;
+    }
     let s = String::from_utf8(out.stdout).ok()?.trim().to_string();
     if s.is_empty() { None } else { Some(s) }
 }

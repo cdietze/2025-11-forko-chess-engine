@@ -54,6 +54,12 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
 
     let num_checks = attacks_to_king.0.count_ones();
 
+    // println!("board:\n{}", board);
+    // println!("num_checks: {}", num_checks);
+    // println!("king_attack_map: {:?}", king_attack_map);
+    // println!("attacks_to_king: {:?}", attacks_to_king);
+    // println!("pinned: {:?}", pinned);
+
     if num_checks == 0 {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_castling_moves(
