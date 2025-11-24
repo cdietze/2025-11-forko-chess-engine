@@ -4,8 +4,10 @@ use crate::r#move::Move;
 use crate::move_gen::generate_moves;
 use crate::search;
 
-// Public entrypoint for the UCI protocol loop.
-// Keeps debug logging on stderr; UCI-required outputs on stdout.
+/// Public entrypoint for the UCI protocol loop.
+/// Keeps debug logging on stderr; UCI-required outputs on stdout.
+/// UCI spec can be found here: https://wbec-ridderkerk.nl/html/UCIProtocol.html
+/// Official Download is here: https://www.shredderchess.com/download.html
 pub fn run() {
     use std::io::{self, BufRead, Write};
 
@@ -142,7 +144,7 @@ impl UciEngine {
         }
 
         let d = depth.unwrap_or(self.default_depth);
-        let d = 4;
+        let d = 5;
         /// TODO: use real depth, limited for now to keep responsive...
         eprintln!("[debug] go: starting search at depth {}", d);
 
@@ -217,15 +219,16 @@ fn apply_position_command<'a>(
             }
         }
     }
-
     Ok(())
 }
 
 fn apply_one_move_token(board: &mut Board, token: &str) -> Result<(), String> {
-    // Generate legal moves and find the one that matches the UCI token.
+    let token_norm: String = token.to_ascii_lowercase();
+
+    // Generate legal moves and find the one whose UCI string matches the normalized token.
     let moves = generate_moves(board);
     for m in moves {
-        if token_matches_uci_move(token, m) {
+        if uci_move_string(m) == token_norm {
             board.make_move(m);
             return Ok(());
         }
@@ -237,33 +240,11 @@ fn apply_one_move_token(board: &mut Board, token: &str) -> Result<(), String> {
     ))
 }
 
-fn token_matches_uci_move(token: &str, m: Move) -> bool {
-    // Match either our Display form (e.g., e7e8=Q) or pure UCI (e7e8q)
-    let display_form = m.to_string();
-    if token.eq_ignore_ascii_case(&display_form) {
-        return true;
-    }
-    // Convert display form to UCI compact for compare: drop '=', lowercase promo
-    let compact = display_to_compact_uci(&display_form);
-    token.eq_ignore_ascii_case(&compact)
-}
-
-fn display_to_compact_uci(s: &str) -> String {
-    // e2e4 -> e2e4
-    // e7e8=Q -> e7e8q
-    if let Some(eq_pos) = s.find('=') {
-        let mut out = String::with_capacity(s.len());
-        out.push_str(&s[..eq_pos]);
-        if let Some(ch) = s.chars().nth(eq_pos + 1) {
-            out.push(ch.to_ascii_lowercase());
-        }
-        out
-    } else {
-        s.to_string()
-    }
-}
-
 fn uci_move_string(m: Move) -> String {
-    // Convert our Display form (e.g., e7e8=Q) into pure UCI (e7e8q)
-    display_to_compact_uci(&m.to_string())
+    // Convert our Display form (e.g., e7e8=Q) into pure UCI (e7e8q) by keeping only alphanumerics and lowercasing.
+    m.to_string()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .flat_map(|c| c.to_lowercase())
+        .collect()
 }
