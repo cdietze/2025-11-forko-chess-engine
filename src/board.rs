@@ -128,7 +128,8 @@ impl Board {
         if m.promotion() {
             // Promote the piece: clear "from" and add pomotion piece to "to"
             self.pieces[pi] = self.pieces[pi].clear_bit(from);
-            self.pieces[m.promotion_piece().idx()].set_bit(to);
+            self.pieces[m.promotion_piece().idx()] =
+                self.pieces[m.promotion_piece().idx()].set_bit(to);
         } else {
             // Move the piece: set "to" and clear "from"
             self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
