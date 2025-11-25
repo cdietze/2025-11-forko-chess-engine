@@ -77,4 +77,18 @@ mod tests {
         let board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
         assert_eq!(perft(&board, 7), 178_633_661);
     }
+
+    #[test]
+    #[cfg_attr(debug_assertions, ignore)]
+    fn test_perft_position_4_depth_5() {
+        let board =
+            Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+        assert_eq!(perft(&board, 5), 15_833_292);
+    }
+    #[test]
+    #[cfg_attr(debug_assertions, ignore)]
+    fn test_perft_position_5_depth_5() {
+        let board = Board::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+        assert_eq!(perft(&board, 5), 89_941_194);
+    }
 }
