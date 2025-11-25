@@ -75,8 +75,9 @@ impl fmt::Debug for BitBoard {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::bitboard::BitBoard;
+    use super::BitBoard;
 
     #[test]
     fn test_print_bitboard() {

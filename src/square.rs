@@ -6,12 +6,8 @@ pub struct Square(pub u8);
 
 impl Square {
     pub const ILLEGAL_SQUARE: Square = Square(64);
-
     pub fn is_legal(&self) -> bool {
         self.0 < 64
-    }
-    pub fn algebraic(&self) -> String {
-        format!("{}", self)
     }
     pub fn file(&self) -> u8 {
         self.0 % 8
@@ -113,7 +109,7 @@ impl Square {
 impl core::fmt::Display for Square {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let idx = self.0;
-        let file = (idx % 8);
+        let file = idx % 8;
         let rank = idx / 8;
         let file_char = (b'a' + file) as char;
         let rank_char = (b'1' + rank) as char;

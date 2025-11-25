@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod tests {
     use crate::board::Board;
     use crate::move_gen::generate_moves;

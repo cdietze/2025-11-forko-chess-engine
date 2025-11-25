@@ -1,7 +1,7 @@
 use crate::board::Board;
 use crate::eval::eval;
 use crate::r#move::Move;
-use crate::move_gen::{MoveGenError, generate_moves, king_attack_map};
+use crate::move_gen::{generate_moves, king_attack_map};
 use crate::util::with_separator;
 
 const ILLEGAL_POSITION_SCORE: i32 = -1_000_000_000;
@@ -85,8 +85,9 @@ fn nega_max_impl(
 /// Evaluation relative to side to move.
 // eval function now provided by crate::eval::eval
 
+#[cfg(test)]
 mod tests {
-    use crate::board::{Board, Color, Piece};
+    use crate::board::Board;
     use crate::search;
     use crate::search::CHECKMATE_SCORE;
     use crate::util::with_separator;
@@ -131,7 +132,7 @@ mod tests {
                         m,
                         with_separator(result.score)
                     );
-                    board.make_move(m);
+                    board.make_move(m).unwrap();
                     println!(
                         "After ply {ply} ({} to move):\n{}\n{}",
                         board.color_to_move(),

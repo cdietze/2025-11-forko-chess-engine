@@ -197,13 +197,13 @@ impl Board {
         // Update "white" BitBoard: update "to" and "from" does not matter anymore,
         self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
-        if (!is_legal(self)) {
+        if !is_legal(self) {
             return Err("Illegal move".to_string());
         }
         Ok(())
     }
 
-    pub fn unmake_move(&mut self, m: Move, irreversible_stuff: String) {
+    pub fn unmake_move(&mut self, _m: Move, _irreversible_stuff: String) {
         todo!("implement unmake_move")
     }
 
@@ -405,6 +405,7 @@ impl Default for Board {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::board::{Board, Color, Piece};
     use crate::r#move::Move;
@@ -415,18 +416,26 @@ mod tests {
     fn white_castling_should_move_pieces_correctly() {
         let board = Board::from_fen("8/8/8/8/8/4k3/P6P/R3K2R w KQ - 0 1");
         let mut board1 = board;
-        board1.make_move(Move::new_castle(Square::E1, Square::G1, KingSide));
+        board1
+            .make_move(Move::new_castle(Square::E1, Square::G1, KingSide))
+            .unwrap();
         println!("board after king-side castle:\n{}", board1);
         let mut board2 = board;
-        board2.make_move(Move::new_castle(Square::E1, Square::C1, QueenSide));
+        board2
+            .make_move(Move::new_castle(Square::E1, Square::C1, QueenSide))
+            .unwrap();
         println!("board after queen-side castle:\n{}", board2);
     }
 
     #[test]
     fn en_passant_capture_should_move_pieces_correctly() {
         let mut board = Board::from_fen("7k/8/7K/8/1p6/8/P7/8 w - - 0 1");
-        board.make_move(Move::new_double_pawn_push(Square::A2, Square::A4));
-        board.make_move(Move::new_en_passant(Square::B4, Square::A3));
+        board
+            .make_move(Move::new_double_pawn_push(Square::A2, Square::A4))
+            .unwrap();
+        board
+            .make_move(Move::new_en_passant(Square::B4, Square::A3))
+            .unwrap();
         println!("board after en passant capture:\n{}", board);
     }
 

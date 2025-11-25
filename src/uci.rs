@@ -258,7 +258,9 @@ fn apply_one_move_token(board: &mut Board, token: &str) -> Result<(), String> {
     let moves = generate_moves(board);
     for m in moves {
         if uci_move_string(m) == token_norm {
-            board.make_move(m);
+            board
+                .make_move(m)
+                .map_err(|e| format!("illegal move '{}': {}", token, e))?;
             return Ok(());
         }
     }

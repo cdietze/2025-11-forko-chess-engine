@@ -602,12 +602,12 @@ mod tests {
             .collect()
     }
     fn assert_move_sources(moves: &[Move], expected: &[&str]) {
-        let actual: BTreeSet<String> = moves.iter().map(|m| m.from().algebraic()).collect();
+        let actual: BTreeSet<String> = moves.iter().map(|m| m.from().to_string()).collect();
         let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
         assert_eq!(actual, expected);
     }
     fn assert_move_destinations(moves: &[Move], expected: &[&str]) {
-        let actual: BTreeSet<String> = moves.iter().map(|m| m.to().algebraic()).collect();
+        let actual: BTreeSet<String> = moves.iter().map(|m| m.to().to_string()).collect();
         let expected: BTreeSet<String> = expected.iter().map(|&s| s.to_string()).collect();
         assert_eq!(actual, expected);
     }
@@ -810,10 +810,10 @@ mod tests {
                     "Ply {}: {} plays {} -> {}",
                     move_num,
                     board.color_to_move(),
-                    white_move.from().algebraic(),
-                    white_move.to().algebraic()
+                    white_move.from().to_string(),
+                    white_move.to().to_string()
                 );
-                board.make_move(*white_move);
+                board.make_move(*white_move).unwrap();
                 println!("{}", board);
             }
         }
@@ -833,10 +833,10 @@ mod tests {
                 "Ply {}: {} plays {} -> {}",
                 move_num,
                 board.color_to_move(),
-                best_move.from().algebraic(),
-                best_move.to().algebraic()
+                best_move.from().to_string(),
+                best_move.to().to_string()
             );
-            board.make_move(best_move);
+            board.make_move(best_move).unwrap();
             println!("{}", board);
         }
     }
