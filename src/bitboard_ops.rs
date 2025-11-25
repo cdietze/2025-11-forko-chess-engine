@@ -136,9 +136,9 @@ mod tests {
         let bb = BitBoard::EMPTY;
         assert_eq!(bb.bit_scan_forward(), 64);
     }
-
     #[should_panic]
     #[test]
+    #[cfg_attr(not(debug_assertions), ignore)]
     fn test_bit_scan_backward_should_panic_on_empty_board() {
         let bb = BitBoard::EMPTY;
         bb.bit_scan_backward();
