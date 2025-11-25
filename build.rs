@@ -1,5 +1,4 @@
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     // Attempt to get the latest git tag
