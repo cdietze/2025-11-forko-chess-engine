@@ -158,14 +158,16 @@ impl Board {
 
         // Clear the en passant square
         self.en_passant = Square::ILLEGAL_SQUARE;
-        if pi == Piece::Pawn.idx() && !m.capture() && m.special1() {
-            // This is a double pawn push: Spawn a en passant pawn at the skipped square
-            self.en_passant = m.from().add_offset(self.color_to_move().forward_offset());
-        } else if m.capture() && m.special1() {
-            // This is a en passant capture, remove the pawn
-            let actual_pawn_square = m.to().add_offset(-self.color_to_move().forward_offset());
-            self.pieces[Piece::Pawn.idx()] =
-                self.pieces[Piece::Pawn.idx()].clear_bit(actual_pawn_square.0);
+        if pi == Piece::Pawn.idx() && !m.promotion() {
+            if !m.capture() && m.special1() {
+                // This is a double pawn push: Spawn a en passant pawn at the skipped square
+                self.en_passant = m.from().add_offset(self.color_to_move().forward_offset());
+            } else if m.capture() && m.special1() {
+                // This is a en passant capture, remove the pawn
+                let actual_pawn_square = m.to().add_offset(-self.color_to_move().forward_offset());
+                self.pieces[Piece::Pawn.idx()] =
+                    self.pieces[Piece::Pawn.idx()].clear_bit(actual_pawn_square.0);
+            }
         }
 
         if pi == Piece::King.idx() {
