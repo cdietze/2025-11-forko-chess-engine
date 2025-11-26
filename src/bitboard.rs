@@ -1,11 +1,9 @@
+use crate::square::{ParseSquareError, Square};
+use std::fmt;
+
 #[repr(transparent)]
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
-
-#[cfg(test)]
-use crate::square::ParseSquareError;
-use crate::square::Square;
-use std::fmt;
 
 impl BitBoard {
     /// Creates a BitBoard with a single bit set at the given square

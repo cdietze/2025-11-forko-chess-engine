@@ -173,7 +173,7 @@ impl UciEngine {
         }
 
         let d = depth.unwrap_or(self.default_depth);
-        let d = 5;
+        let d = 6;
         /// TODO: use real depth, limited for now to keep responsive...
         eprintln!("[debug] go: starting search at depth {}", d);
 
