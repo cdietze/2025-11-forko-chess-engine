@@ -8,11 +8,6 @@ use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MoveGenError {
-    IllegalPosition,
-}
-
 /// Generates a list of *pseudo-legal* moves from given board.
 pub fn generate_moves(board: &Board) -> Vec<Move> {
     let mut v = Vec::new();
@@ -64,7 +59,6 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         let not_own_pieces_bb = occupied.and(board.own_color_board()).not();
         add_castling_moves(
             AddCastlingMovesProps {
-                king_square: own_king,
                 side_to_move: board.color_to_move(),
                 occupied,
                 king_attack_map,
@@ -221,7 +215,6 @@ fn add_king_moves(props: AddKingMovesProps, v: &mut Vec<Move>) {
 }
 
 struct AddCastlingMovesProps {
-    king_square: Square,
     side_to_move: Color,
     occupied: BitBoard,
     king_attack_map: BitBoard,

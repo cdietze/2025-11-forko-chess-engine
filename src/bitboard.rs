@@ -2,7 +2,9 @@
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct BitBoard(pub u64);
 
-use crate::square::{ParseSquareError, Square};
+#[cfg(test)]
+use crate::square::ParseSquareError;
+use crate::square::Square;
 use std::fmt;
 
 impl BitBoard {

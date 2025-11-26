@@ -184,6 +184,7 @@ const fn compute_pawn_attacks(
     b
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
