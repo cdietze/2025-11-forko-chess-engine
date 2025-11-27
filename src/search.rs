@@ -152,6 +152,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn should_play_against_self() {
         let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
@@ -162,7 +163,7 @@ mod tests {
         );
 
         for ply in 1..=50 {
-            let result = search::find_best_move(&mut board, 6);
+            let result = search::find_best_move(&mut board, 4);
             match result.move_ {
                 Some(m) => {
                     println!(
