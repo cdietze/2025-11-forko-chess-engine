@@ -1,4 +1,4 @@
-use crate::square::{ParseSquareError, Square};
+use crate::square::Square;
 use std::fmt;
 
 #[repr(transparent)]
@@ -25,24 +25,6 @@ impl BitBoard {
             i += 1;
         }
         acc
-    }
-    /// Tries to create a BitBoard from coordinate strings like "a1", "e5", "f3".
-    ///
-    /// Returns an error if any coordinate is invalid.
-    ///
-    /// Examples:
-    /// let bb = BitBoard::try_from_coords(["a1", "e5", "f3"])?;
-    /// let bb2 = BitBoard::try_from_coords(vec!["b2".to_string(), "h8".to_string()])?;
-    #[inline]
-    pub fn try_from_coords<S, I>(coords: I) -> Result<Self, ParseSquareError>
-    where
-        S: AsRef<str>,
-        I: IntoIterator<Item = S>,
-    {
-        coords.into_iter().try_fold(BitBoard::EMPTY, |acc, s| {
-            let sq: Square = s.as_ref().parse()?;
-            Ok(acc.or(BitBoard::from_square(sq)))
-        })
     }
 }
 

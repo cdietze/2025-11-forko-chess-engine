@@ -109,22 +109,6 @@ impl Move {
         Self::new(from, to, false, false, special0, special1)
     }
 
-    /// Creates a move from raw indices (0..=63). Extra bits are masked.
-    #[inline]
-    pub const fn from_indices(from: u8, to: u8) -> Self {
-        let f = (from as u16) & Self::FROM_MASK;
-        let t = (to as u16) & Self::TO_MASK;
-        Self((f << Self::FROM_SHIFT) | (t << Self::TO_SHIFT))
-    }
-
-    /// Creates a move from parts (indices + flags). Extra bits are masked.
-    #[inline]
-    pub const fn from_parts(from: u8, to: u8, flags: u8) -> Self {
-        let base = Self::from_indices(from, to).0;
-        let fl = ((flags as u16) & Self::FLAG_MASK) << Self::FLAG_SHIFT;
-        Self(base | fl)
-    }
-
     /// Returns the source square.
     #[inline]
     pub const fn from(self) -> Square {
@@ -135,12 +119,6 @@ impl Move {
     #[inline]
     pub const fn to(self) -> Square {
         Square(((self.0 >> Self::TO_SHIFT) & Self::TO_MASK) as u8)
-    }
-
-    /// Returns the 4-bit flags field.
-    #[inline]
-    pub const fn flags(self) -> u8 {
-        ((self.0 >> Self::FLAG_SHIFT) & Self::FLAG_MASK) as u8
     }
 
     #[inline]
@@ -171,11 +149,6 @@ impl Move {
     #[inline]
     pub const fn capture(self) -> bool {
         (self.0 & (1u16 << Self::CAPTURE_SHIFT)) != 0
-    }
-    /// Returns the underlying 16-bit representation.
-    #[inline]
-    pub const fn raw(self) -> u16 {
-        self.0
     }
 
     pub fn algebraic(self) -> String {
@@ -263,16 +236,8 @@ mod tests {
         let m = Move::new_quiet(from, to);
         assert_eq!(m.from(), Square(0));
         assert_eq!(m.to(), Square(63));
-        assert_eq!(m.flags(), 0);
-    }
-
-    #[test]
-    fn from_parts_works() {
-        let m = Move::from_parts(7, 56, 0b1111);
-        assert_eq!(m.from(), Square(7));
-        assert_eq!(m.to(), Square(56));
-        assert_eq!(m.flags(), 0b1111);
-        assert_eq!(m.raw() & 0xFFFF, m.raw());
+        assert_eq!(m.special0(), false);
+        assert_eq!(m.special1(), false);
     }
 
     #[test]
@@ -281,7 +246,8 @@ mod tests {
         let m = Move::from_str("e2e4").expect("valid coords");
         assert_eq!(m.from(), Square(12)); // e2 => 1*8 + 4 = 12
         assert_eq!(m.to(), Square(28)); // e4 => 3*8 + 4 = 28
-        assert_eq!(m.flags(), 0);
+        assert_eq!(m.special0(), false);
+        assert_eq!(m.special1(), false);
     }
 
     #[test]
@@ -290,7 +256,8 @@ mod tests {
         let m = Move::from_str("b1c3").unwrap();
         assert_eq!(m.from(), Square(1)); // b1 => 0*8 + 1
         assert_eq!(m.to(), Square(18)); // c3 => 2*8 + 2
-        assert_eq!(m.flags(), 0);
+        assert_eq!(m.special0(), false);
+        assert_eq!(m.special1(), false);
     }
     #[test]
     fn promotion_and_capture_bits_work() {

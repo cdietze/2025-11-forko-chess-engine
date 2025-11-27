@@ -5,7 +5,6 @@ use crate::r#move::Move;
 use crate::move_gen::{generate_moves, king_attack_map};
 use crate::util::with_separator;
 
-const ILLEGAL_POSITION_SCORE: i32 = -1_000_000_000;
 const INF: i32 = 1_000_000_000; // search bounds for alpha-beta
 const CHECKMATE_SCORE: i32 = -1_000_000;
 const STALEMATE_SCORE: i32 = 0;

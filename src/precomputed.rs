@@ -188,8 +188,11 @@ const fn compute_pawn_attacks(
 mod tests {
     use super::*;
 
-    fn bb_from_coords(coords: &[&str]) -> BitBoard {
-        BitBoard::try_from_coords(coords.iter().cloned()).unwrap()
+    fn squares(coords: &[&str]) -> Vec<Square> {
+        coords
+            .iter()
+            .map(|s| s.parse::<Square>().unwrap())
+            .collect()
     }
 
     #[test]
@@ -216,11 +219,11 @@ mod tests {
         let cases: &[(Dir8, BitBoard)] = &[
             (
                 Dir8::North,
-                bb_from_coords(&["a2", "a3", "a4", "a5", "a6", "a7", "a8"]),
+                BitBoard::from_squares(&squares(&["a2", "a3", "a4", "a5", "a6", "a7", "a8"])),
             ),
             (
                 Dir8::East,
-                bb_from_coords(&["b1", "c1", "d1", "e1", "f1", "g1", "h1"]),
+                BitBoard::from_squares(&squares(&["b1", "c1", "d1", "e1", "f1", "g1", "h1"])),
             ),
             (Dir8::South, BitBoard::EMPTY),
             (Dir8::West, BitBoard::EMPTY),
@@ -239,10 +242,22 @@ mod tests {
     fn rays_from_d4_are_correct() {
         let idx = "d4".parse::<Square>().unwrap().0;
         let cases: &[(Dir8, BitBoard)] = &[
-            (Dir8::North, bb_from_coords(&["d5", "d6", "d7", "d8"])),
-            (Dir8::South, bb_from_coords(&["d3", "d2", "d1"])),
-            (Dir8::East, bb_from_coords(&["e4", "f4", "g4", "h4"])),
-            (Dir8::West, bb_from_coords(&["c4", "b4", "a4"])),
+            (
+                Dir8::North,
+                BitBoard::from_squares(&squares(&["d5", "d6", "d7", "d8"])),
+            ),
+            (
+                Dir8::South,
+                BitBoard::from_squares(&squares(&["d3", "d2", "d1"])),
+            ),
+            (
+                Dir8::East,
+                BitBoard::from_squares(&squares(&["e4", "f4", "g4", "h4"])),
+            ),
+            (
+                Dir8::West,
+                BitBoard::from_squares(&squares(&["c4", "b4", "a4"])),
+            ),
         ];
         for &(d, expected) in cases {
             let actual = RAYS[idx as usize][d.idx()];
@@ -262,11 +277,11 @@ mod tests {
             (Dir8::East, BitBoard::EMPTY),
             (
                 Dir8::South,
-                bb_from_coords(&["h7", "h6", "h5", "h4", "h3", "h2", "h1"]),
+                BitBoard::from_squares(&squares(&["h7", "h6", "h5", "h4", "h3", "h2", "h1"])),
             ),
             (
                 Dir8::West,
-                bb_from_coords(&["g8", "f8", "e8", "d8", "c8", "b8", "a8"]),
+                BitBoard::from_squares(&squares(&["g8", "f8", "e8", "d8", "c8", "b8", "a8"])),
             ),
         ];
         for &(d, expected) in cases {
@@ -283,14 +298,14 @@ mod tests {
     fn knight_moves_from_a1_are_correct() {
         assert_eq!(
             compute_knight_attacks("a1".parse().unwrap()),
-            bb_from_coords(&["b3", "c2"])
+            BitBoard::from_squares(&squares(&["b3", "c2"]))
         );
     }
     #[test]
     fn knight_moves_from_e4_are_correct() {
         assert_eq!(
             compute_knight_attacks("e4".parse().unwrap()),
-            bb_from_coords(&["c3", "c5", "d2", "d6", "f2", "f6", "g3", "g5"])
+            BitBoard::from_squares(&squares(&["c3", "c5", "d2", "d6", "f2", "f6", "g3", "g5"]))
         );
     }
 
@@ -298,18 +313,18 @@ mod tests {
     fn knight_moves_from_h7_are_correct() {
         assert_eq!(
             compute_knight_attacks("h7".parse().unwrap()),
-            bb_from_coords(&["f8", "f6", "g5"])
+            BitBoard::from_squares(&squares(&["f8", "f6", "g5"]))
         );
     }
     #[test]
     fn white_pawn_attacks_from_d4_are_correct() {
         assert_eq!(
             compute_pawn_attacks("d4".parse().unwrap(), White, true),
-            bb_from_coords(&["e5"])
+            BitBoard::from_squares(&squares(&["e5"]))
         );
         assert_eq!(
             compute_pawn_attacks("d4".parse().unwrap(), White, false),
-            bb_from_coords(&["c5"])
+            BitBoard::from_squares(&squares(&["c5"]))
         );
     }
 
@@ -317,11 +332,11 @@ mod tests {
     fn black_pawn_attacks_from_d4_are_correct() {
         assert_eq!(
             compute_pawn_attacks("d4".parse().unwrap(), Color::Black, true),
-            bb_from_coords(&["e3"])
+            BitBoard::from_squares(&squares(&["e3"]))
         );
         assert_eq!(
             compute_pawn_attacks("d4".parse().unwrap(), Color::Black, false),
-            bb_from_coords(&["c3"])
+            BitBoard::from_squares(&squares(&["c3"]))
         );
     }
 }

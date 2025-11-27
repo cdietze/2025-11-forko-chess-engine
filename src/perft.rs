@@ -2,8 +2,12 @@
 mod tests {
     use crate::board::Board;
     use crate::move_gen::generate_moves;
+    use crate::util::with_separator;
+    use std::cmp::min;
+    use std::time::Instant;
 
     fn perft(board: &Board, depth: u8) -> u64 {
+        let start = Instant::now();
         fn foo(b: &Board, d: u8, initial_depth: u8) -> u64 {
             if d == 0 {
                 return 1;
@@ -25,7 +29,13 @@ mod tests {
             nodes
         }
         let nodes = foo(board, depth, depth);
-        println!("Node count at depth {:?}: {}", depth, nodes);
+        let elapsed = start.elapsed();
+        let secs = elapsed.as_secs_f64().max(1e-9);
+        let nps = with_separator(((nodes as f64) / secs) as i32);
+        println!(
+            "Node count at depth {:?}: {} | time: {:.3}s | nps: {}",
+            depth, nodes, secs, nps
+        );
         nodes
     }
 

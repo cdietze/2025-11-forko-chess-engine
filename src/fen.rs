@@ -159,8 +159,8 @@ mod tests {
         println!("{:?}", board);
         assert_eq!(board.white_to_move, true);
         assert_eq!(
-            board.white_kings(),
-            BitBoard::try_from_coords(["h1"]).unwrap()
+            board.kings().and(board.white),
+            BitBoard::from_squares(&[Square::H1])
         );
     }
 

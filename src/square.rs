@@ -31,7 +31,9 @@ impl Square {
     pub fn add_offset(self, offset: i8) -> Square {
         Square((self.0 as i8 + offset) as u8)
     }
-
+}
+#[allow(dead_code)]
+impl Square {
     // Indexing: a1 = 0, b1 = 1, ..., h1 = 7, a2 = 8, ..., h8 = 63
     pub const A1: Square = Square(0);
     pub const B1: Square = Square(1);

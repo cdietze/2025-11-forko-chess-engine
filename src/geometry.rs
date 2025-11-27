@@ -9,7 +9,9 @@ pub enum Dir4 {
     Diagonal,
     AntiDiagonal,
 }
+#[allow(dead_code)]
 impl Dir4 {
+    #[allow(dead_code)]
     pub const COUNT: usize = 4;
     pub const ALL: [Dir4; Dir4::COUNT] =
         [Dir4::Rank, Dir4::File, Dir4::Diagonal, Dir4::AntiDiagonal];
@@ -32,6 +34,7 @@ pub enum Dir8 {
 }
 impl Dir8 {
     pub const COUNT: usize = 8;
+    #[allow(dead_code)]
     pub const ALL: [Dir8; Dir8::COUNT] = [
         Dir8::North,
         Dir8::South,

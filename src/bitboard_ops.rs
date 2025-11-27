@@ -29,6 +29,7 @@ impl BitBoard {
 }
 
 // General BitBoard utility methods and constants
+#[allow(dead_code)]
 impl BitBoard {
     pub const EMPTY: BitBoard = BitBoard(0);
     pub const FULL: BitBoard = BitBoard(!0);

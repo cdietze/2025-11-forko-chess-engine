@@ -237,15 +237,6 @@ impl Board {
         self.color_board(self.color_to_move())
     }
 
-    pub fn king_square(&self, color: Color) -> Square {
-        Square(self.kings().and(self.color_board(color)).bit_scan_forward())
-    }
-
-    #[inline]
-    pub fn white_kings(&self) -> BitBoard {
-        self.white.and(self.kings())
-    }
-
     #[inline]
     pub fn pieces(&self, piece: Piece, color: Color) -> BitBoard {
         let bb = self.pieces[piece.idx()];

@@ -611,9 +611,12 @@ mod tests {
     }
     #[test]
     fn xray_rook_should_be_correct() {
-        let blockers = BitBoard::try_from_coords(["a3", "a6"]).unwrap();
+        let blockers = BitBoard::from_squares(&[Square::A3, Square::A6]);
         let xray = xray_rook(Square(0), blockers, blockers);
-        assert_eq!(xray, BitBoard::try_from_coords(["a4", "a5", "a6"]).unwrap());
+        assert_eq!(
+            xray,
+            BitBoard::from_squares(&[Square::A4, Square::A5, Square::A6])
+        );
     }
     #[test]
     fn king_should_not_capture_own_piece() {
