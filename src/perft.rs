@@ -8,6 +8,41 @@ mod tests {
 
     fn perft(board: &Board, depth: u8) -> u64 {
         let start = Instant::now();
+        fn foo(b: &mut Board, d: u8, initial_depth: u8) -> u64 {
+            if d == 0 {
+                return 1;
+            }
+            let moves = generate_moves(b);
+            let mut nodes = 0u64;
+            for m in moves {
+                // In-place make/unmake
+                let info = match b.make_move_with_info(m) {
+                    Ok(info) => info,
+                    Err(_) => continue,
+                };
+                let n = foo(b, d - 1, initial_depth);
+                // if d == initial_depth {
+                //     println!("{:?}: {}", m, n);
+                // }
+                nodes += n;
+                b.unmake_move(m, info);
+            }
+            nodes
+        }
+        let mut board = *board;
+        let nodes = foo(&mut board, depth, depth);
+        let elapsed = start.elapsed();
+        let secs = elapsed.as_secs_f64().max(1e-9);
+        let nps = with_separator(((nodes as f64) / secs) as i32);
+        println!(
+            "Node count at depth {:?}: {} | time: {:.3}s | nps: {}",
+            depth, nodes, secs, nps
+        );
+        nodes
+    }
+
+    fn perft_copy(board: Board, depth: u8) -> u64 {
+        let start = Instant::now();
         fn foo(b: &Board, d: u8, initial_depth: u8) -> u64 {
             if d == 0 {
                 return 1;
@@ -15,20 +50,23 @@ mod tests {
             let moves = generate_moves(b);
             let mut nodes = 0u64;
             for m in moves {
-                // TODO: Don't clone board but use unmake_move
                 let mut bb = *b;
-                if bb.make_move(m).is_err() {
-                    continue;
-                }
+                // In-place make/unmake
+                let info = match bb.make_move_with_info(m) {
+                    Ok(info) => info,
+                    Err(_) => continue,
+                };
                 let n = foo(&bb, d - 1, initial_depth);
-                if d == initial_depth {
-                    println!("{:?}: {}", m, n);
-                }
+                // if d == initial_depth {
+                //     println!("{:?}: {}", m, n);
+                // }
                 nodes += n;
+                // b.unmake_move(m, info);
             }
             nodes
         }
-        let nodes = foo(board, depth, depth);
+        // let mut board = *board;
+        let nodes = foo(&board, depth, depth);
         let elapsed = start.elapsed();
         let secs = elapsed.as_secs_f64().max(1e-9);
         let nps = with_separator(((nodes as f64) / secs) as i32);
@@ -95,6 +133,14 @@ mod tests {
         let board =
             Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
         assert_eq!(perft(&board, 5), 15_833_292);
+    }
+
+    #[test]
+    #[cfg_attr(debug_assertions, ignore)]
+    fn test_perft_position_4_depth_5_copy() {
+        let board =
+            Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+        assert_eq!(perft_copy(board, 5), 15_833_292);
     }
     #[test]
     #[cfg_attr(debug_assertions, ignore)]

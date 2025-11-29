@@ -105,7 +105,6 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, info: &mut SearchInf
         if b.make_move(m).is_err() {
             continue;
         }
-
         let score = -quiescence(&mut b, -beta, -alpha, info);
 
         if score >= beta {
@@ -192,7 +191,6 @@ fn nega_max_impl(
     let mut picker = MovePicker::new(board, moves, first_move, killer_moves);
 
     while let Some(m) = picker.next() {
-        // TODO: Don't clone board but use unmake_move
         let mut b = *board;
         if b.make_move(m).is_err() {
             continue;

@@ -86,7 +86,36 @@ pub struct Board {
     pub castling_rights: [CastlingRights; Color::COUNT],
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct UnmakeInfo {
+    /// En-passant square before the move (Square::ILLEGAL_SQUARE if none)
+    pub prev_en_passant: Square,
+    /// Castling rights before the move
+    pub prev_castling_rights: [CastlingRights; Color::COUNT],
+    /// Captured piece (if any) of the move being undone. None for quiet moves and en-passant is
+    /// represented as Some(Pawn).
+    pub captured_piece: Option<Piece>,
+    /// The moved piece type
+    pub moved_piece: Piece,
+}
+
 impl Board {
+    /// Perform a move and return the information required to unmake it efficiently.
+    /// This is a thin wrapper around make_move that captures the previous irreversible state
+    /// and the captured piece (if any).
+    pub fn make_move_with_info(&mut self, m: Move) -> Result<UnmakeInfo, String> {
+        // Apply the move and get unmake info
+        let info = self.make_move_unchecked(m);
+
+        // Check legality
+        if !is_legal(self) {
+            // Restore board to original state
+            self.unmake_move(m, info);
+            return Err("Illegal move".to_string());
+        }
+
+        Ok(info)
+    }
     #[inline]
     pub fn color_to_move(&self) -> Color {
         if self.white_to_move {
@@ -96,17 +125,27 @@ impl Board {
         }
     }
     pub fn make_move(&mut self, m: Move) -> Result<(), String> {
-        // println!("make_move, board:\n{}", self);
-        // println!(
-        //     "make_move: {:?} from: {}({}), to: {}({})",
-        //     m,
-        //     m.from(),
-        //     m.from().0,
-        //     m.to(),
-        //     m.to().0
-        // );
+        // Use make_move_unchecked and check legality afterwards
+        let info = self.make_move_unchecked(m);
+
+        if !is_legal(self) {
+            // Restore board to original state
+            self.unmake_move(m, info);
+            return Err("Illegal move".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Apply a move without checking legality. Returns UnmakeInfo for potential rollback.
+    /// This is used internally by make_move and make_move_with_info.
+    fn make_move_unchecked(&mut self, m: Move) -> UnmakeInfo {
         let from = m.from().0;
         let to = m.to().0;
+
+        // Capture irreversible state before applying the move
+        let prev_en_passant = self.en_passant;
+        let prev_castling_rights = self.castling_rights;
 
         // Determine which piece is moving based on the source square
         let mut moved_piece_idx: Option<usize> = None;
@@ -118,6 +157,30 @@ impl Board {
         }
         debug_assert!(moved_piece_idx.is_some(), "No piece found at source square");
         let pi = moved_piece_idx.unwrap();
+
+        let moved_piece = match pi {
+            x if x == Piece::King.idx() => Piece::King,
+            x if x == Piece::Queen.idx() => Piece::Queen,
+            x if x == Piece::Rook.idx() => Piece::Rook,
+            x if x == Piece::Bishop.idx() => Piece::Bishop,
+            x if x == Piece::Knight.idx() => Piece::Knight,
+            _ => Piece::Pawn,
+        };
+
+        // Determine captured piece (if any) before the move is executed
+        let captured_piece = if m.capture() {
+            // Identify if this is en passant: moving piece is a pawn and special1() set on capture
+            let moved_is_pawn = moved_piece == Piece::Pawn;
+            if moved_is_pawn && !m.promotion() && m.special1() {
+                Some(Piece::Pawn)
+            } else {
+                // Normal capture: piece currently on destination
+                self.piece_at(to).map(|(p, _c)| p)
+            }
+        } else {
+            None
+        };
+
         // Handle capture: clear any piece on destination
         if m.capture() {
             for j in 0..Piece::COUNT {
@@ -126,7 +189,7 @@ impl Board {
         }
 
         if m.promotion() {
-            // Promote the piece: clear "from" and add pomotion piece to "to"
+            // Promote the piece: clear "from" and add promotion piece to "to"
             self.pieces[pi] = self.pieces[pi].clear_bit(from);
             self.pieces[m.promotion_piece().idx()] =
                 self.pieces[m.promotion_piece().idx()].set_bit(to);
@@ -197,14 +260,108 @@ impl Board {
         // Update "white" BitBoard: update "to" and "from" does not matter anymore,
         self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
-        if !is_legal(self) {
-            return Err("Illegal move".to_string());
+
+        UnmakeInfo {
+            prev_en_passant,
+            prev_castling_rights,
+            captured_piece,
+            moved_piece,
         }
-        Ok(())
     }
 
-    pub fn unmake_move(&mut self, _m: Move, _irreversible_stuff: String) {
-        todo!("implement unmake_move")
+    // Note: Board legality is expected to have been ensured before calling unmake.
+    pub fn unmake_move(&mut self, m: Move, info: UnmakeInfo) {
+        // Restore side to move first: the move we are undoing was just played by the opposite side
+        self.white_to_move = !self.white_to_move;
+        let mover_color = self.color_to_move();
+        let opponent_color = mover_color.opposite();
+
+        let from = m.from().0;
+        let to = m.to().0;
+        let from_bit = 1u64 << from;
+        let to_bit = 1u64 << to;
+        let move_mask = from_bit | to_bit;
+
+        // Use provided irreversible state directly
+        let prev_ep: Square = info.prev_en_passant;
+        let prev_cr = info.prev_castling_rights;
+        let captured_piece_opt: Option<Piece> = info.captured_piece;
+
+        // Undo special moves first where necessary
+        let is_castle = !m.promotion() && !m.capture() && m.special0();
+        let is_ep_capture = !m.promotion() && m.capture() && m.special1();
+
+        if is_castle {
+            let side: CastleSide = if m.special1() { QueenSide } else { KingSide };
+            let setup = &CASTLING_SETUPS[mover_color.idx()][side as usize];
+            let rook_mask = (1u64 << setup.rook_from.0) | (1u64 << setup.rook_to.0);
+            self.pieces[Piece::Rook.idx()].0 ^= rook_mask;
+            self.pieces[Piece::King.idx()].0 ^= move_mask;
+            if self.white_to_move {
+                self.white.0 ^= (move_mask | rook_mask);
+            }
+            self.white = self
+                .white
+                .set(to, false)
+                .set(from, mover_color == Color::White);
+        } else if m.promotion() {
+            // Remove promoted piece at 'to', restore pawn at 'from'
+            let promo_idx = m.promotion_piece().idx();
+            let pawn_idx = Piece::Pawn.idx();
+            self.pieces[promo_idx] = self.pieces[promo_idx].clear_bit(to);
+            self.pieces[pawn_idx] = self.pieces[pawn_idx].set_bit(from);
+            // Update color bitboard for mover piece move back
+            self.white = self
+                .white
+                .set(to, false)
+                .set(from, mover_color == Color::White);
+            // If it was a promotion capture, restore the captured piece on 'to'
+            if let Some(cp) = captured_piece_opt {
+                let ci = cp.idx();
+                self.pieces[ci] = self.pieces[ci].set_bit(to);
+                self.white = self.white.set(to, opponent_color == Color::White);
+            }
+        } else if is_ep_capture {
+            // En passant: the mover's pawn moved to 'to' and captured a pawn behind 'to'
+            // Move the pawn back from 'to' to 'from'
+            let pawn_idx = Piece::Pawn.idx();
+            self.pieces[pawn_idx] = self.pieces[pawn_idx].clear_bit(to).set_bit(from);
+            self.white = self
+                .white
+                .set(to, false)
+                .set(from, mover_color == Color::White);
+            // Restore the captured pawn behind 'to'
+            let captured_sq = Square(to).add_offset(-mover_color.forward_offset());
+            self.pieces[pawn_idx] = self.pieces[pawn_idx].set_bit(captured_sq.0);
+            self.white = self
+                .white
+                .set(captured_sq.0, opponent_color == Color::White);
+        } else if m.capture() {
+            if let Some(cp) = captured_piece_opt {
+                self.pieces[info.moved_piece.idx()].0 ^= move_mask;
+                self.white = self
+                    .white
+                    .set(to, false)
+                    .set(from, mover_color == Color::White);
+                let ci = cp.idx();
+                self.pieces[ci] = self.pieces[ci].set_bit(to);
+                self.white = self.white.set(to, opponent_color == Color::White);
+            }
+        } else {
+            // Regular quiet move
+            self.pieces[info.moved_piece.idx()].0 ^= move_mask;
+            // if self.white_to_move {
+            //      self.white.0 ^= move_mask;
+            // }
+            self.white = self
+                .white
+                .set(to, false)
+                .set(from, mover_color == Color::White);
+        }
+
+        // Restore en passant square and castling rights
+        self.en_passant = prev_ep;
+        self.castling_rights = prev_cr;
     }
 
     pub fn set_piece(mut self, square: Square, piece: Piece, color: Color) -> Self {
@@ -451,5 +608,70 @@ mod tests {
                 .is_set(Square::C8.0),
             true
         );
+    }
+
+    #[test]
+    fn unmake_quiet_move_roundtrip() {
+        let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        let original = board;
+        let m = Move::new_quiet(Square::E2, Square::E4);
+        let info = board.make_move_with_info(m).unwrap();
+        assert!(board.pieces(Piece::Pawn, Color::White).is_set(Square::E4.0));
+        board.unmake_move(m, info);
+        assert_eq!(original.to_fen(), board.to_fen());
+    }
+
+    #[test]
+    fn unmake_quiet_move_roundtrip_black_to_move() {
+        let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1");
+        let original = board;
+        let m = Move::new_quiet(Square::E7, Square::E5);
+        let info = board.make_move_with_info(m).unwrap();
+        assert!(board.pieces(Piece::Pawn, Color::Black).is_set(Square::E5.0));
+        board.unmake_move(m, info);
+        assert_eq!(original.to_fen(), board.to_fen());
+    }
+
+    #[test]
+    fn unmake_capture_roundtrip() {
+        // Simple position where white captures a piece on e5
+        let mut board =
+            Board::from_fen("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2");
+        let original = board;
+        let m = Move::new_capture(Square::E4, Square::D5);
+        let info = board.make_move_with_info(m).unwrap();
+        assert!(board.pieces(Piece::Pawn, Color::White).is_set(Square::D5.0));
+        board.unmake_move(m, info);
+        assert_eq!(original.to_fen(), board.to_fen());
+    }
+
+    #[test]
+    fn unmake_capture_roundtrip_black_to_move() {
+        // Simple position where white captures a piece on e5
+        let mut board =
+            Board::from_fen("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2");
+        let original = board;
+        let m = Move::new_capture(Square::D5, Square::E4);
+        let info = board.make_move_with_info(m).unwrap();
+        assert!(board.pieces(Piece::Pawn, Color::Black).is_set(Square::E4.0));
+        board.unmake_move(m, info);
+        assert_eq!(original.to_fen(), board.to_fen());
+    }
+
+    #[test]
+    fn illegal_move_restores_board() {
+        // Position where moving the pinned knight would expose king to check
+        let mut board = Board::from_fen("4r3/8/8/8/8/8/4N3/4K3 w - - 0 1");
+        let original_fen = board.to_fen();
+
+        // Try to move the knight that would expose the king
+        let illegal_move = Move::new_quiet(Square::E2, Square::C3);
+        let result = board.make_move(illegal_move);
+
+        // Move should fail
+        assert!(result.is_err());
+
+        // Board should be unchanged
+        assert_eq!(board.to_fen(), original_fen);
     }
 }
