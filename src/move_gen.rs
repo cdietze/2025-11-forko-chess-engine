@@ -1,9 +1,11 @@
 use crate::bitboard::BitBoard;
 use crate::board::Color::White;
 use crate::board::{Board, CastlingRights, Color, Piece};
-use crate::geometry::{Dir8, between_bb, line_bb};
+use crate::geometry::{Dir8, between_bb};
 use crate::r#move::Move;
-use crate::precomputed::{CASTLING_SETUPS, CastleSide, king_moves, knight_attacks, ray_attacks};
+use crate::precomputed::{
+    CASTLING_SETUPS, CastleSide, king_moves, knight_attacks, line_bb, ray_attacks,
+};
 use crate::square::Square;
 
 const PROMOTION_PIECES: [Piece; 4] = [Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight];

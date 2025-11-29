@@ -6,29 +6,23 @@ pub struct Square(pub u8);
 
 impl Square {
     pub const ILLEGAL_SQUARE: Square = Square(64);
-    pub fn is_legal(&self) -> bool {
+    pub const fn is_legal(&self) -> bool {
         self.0 < 64
     }
-    pub fn file(&self) -> u8 {
+    pub const fn file(&self) -> u8 {
         self.0 % 8
     }
-    pub fn rank(&self) -> u8 {
+    pub const fn rank(&self) -> u8 {
         self.0 / 8
     }
-    pub fn is_valid(&self) -> bool {
+    pub const fn is_valid(&self) -> bool {
         self.0 < 64
     }
-    pub fn from_file_rank(file: u8, rank: u8) -> Square {
-        debug_assert!(
-            file < 8 && rank < 8,
-            "invalid square coordinates ({}, {})",
-            file,
-            rank
-        );
+    pub const fn from_file_rank(file: u8, rank: u8) -> Square {
         Square(rank * 8 + file)
     }
 
-    pub fn add_offset(self, offset: i8) -> Square {
+    pub const fn add_offset(self, offset: i8) -> Square {
         Square((self.0 as i8 + offset) as u8)
     }
 }

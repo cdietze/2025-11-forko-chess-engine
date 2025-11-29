@@ -1,7 +1,7 @@
 use crate::bitboard::BitBoard;
 use crate::board::Color;
 use crate::board::Color::White;
-use crate::geometry::Dir8;
+use crate::geometry::{Dir4, Dir8, get_dir};
 use crate::square::Square;
 
 #[inline]
@@ -16,14 +16,16 @@ pub const fn king_moves(square: Square) -> BitBoard {
 
 #[inline]
 pub const fn knight_attacks(square: Square) -> BitBoard {
-    // TODO: actually precompute this
-    compute_knight_attacks(square)
+    KNIGHT_ATTACKS[square.0 as usize]
 }
 
+/// Returns a `BitBoard` containing all squares that lie on a complete line of two given squares.
+/// When from and two are not on a same line, rank, diagonal or anti diagonal, an empty bitboard is returned.
+/// Otherwise the result contains all 8 squares of the line, rank, diagonal or anti diagonal on which
+/// `from` and `to` lie.
 #[inline]
-pub const fn pawn_attacks(square: Square, color_to_move: Color, capture_east: bool) -> BitBoard {
-    // TODO: actually precompute this
-    compute_pawn_attacks(square, color_to_move, capture_east)
+pub fn line_bb(from: Square, to: Square) -> BitBoard {
+    LINE_BB[from.0 as usize][to.0 as usize]
 }
 
 #[repr(u8)]
@@ -52,6 +54,20 @@ pub struct CastlingSetup {
     pub safe_squares: BitBoard,
     pub empty_squares: BitBoard,
 }
+
+const LINE_BB: [[BitBoard; 64]; 64] = {
+    let mut table = [[BitBoard(0); 64]; 64];
+    let mut i = 0;
+    while i < 64 {
+        let mut j = 0;
+        while j < 64 {
+            table[i][j] = compute_line_bb(Square(i as u8), Square(j as u8));
+            j += 1;
+        }
+        i += 1;
+    }
+    table
+};
 
 pub const CASTLING_SETUPS: [[CastlingSetup; CastleSide::COUNT]; Color::COUNT] = [
     [
@@ -105,6 +121,16 @@ const KING_MOVES: [BitBoard; 64] = {
     let mut i: u8 = 0;
     while i < 64 {
         arr[i as usize] = compute_king_moves(Square(i));
+        i += 1;
+    }
+    arr
+};
+
+const KNIGHT_ATTACKS: [BitBoard; 64] = {
+    let mut arr = [BitBoard::EMPTY; 64];
+    let mut i: u8 = 0;
+    while i < 64 {
+        arr[i as usize] = compute_knight_attacks(Square(i));
         i += 1;
     }
     arr
@@ -166,22 +192,37 @@ const fn compute_knight_attacks(square: Square) -> BitBoard {
     nne.or(nee).or(see).or(sse).or(ssw).or(sww).or(nww).or(nnw)
 }
 
-const fn compute_pawn_attacks(
-    square: Square,
-    color_to_move: Color,
-    capture_east: bool,
-) -> BitBoard {
-    let b = BitBoard::from_square(square);
-    let b = match color_to_move {
-        White => b.shift_north(),
-        _ => b.shift_south(),
+const fn compute_line_bb(from: Square, to: Square) -> BitBoard {
+    // Determine alignment type first to avoid branching duplication
+    let dir = get_dir(from, to);
+    let Some(dir) = dir else {
+        return BitBoard::EMPTY;
     };
-    let b = if capture_east {
-        b.shift_east()
-    } else {
-        b.shift_west()
+
+    // For a full line, we backtrack to the edge in the negative direction,
+    // then traverse to the opposite edge collecting squares.
+    let (mut f, mut r) = (from.file() as i8, from.rank() as i8);
+    let (df, dr) = match dir {
+        Dir4::File => (0, 1),
+        Dir4::Rank => (1, 0),
+        Dir4::Diagonal => (1, 1),
+        Dir4::AntiDiagonal => (1, -1),
     };
-    b
+
+    // Step backwards to the board edge
+    while (f - df) >= 0 && (f - df) < 8 && (r - dr) >= 0 && (r - dr) < 8 {
+        f -= df;
+        r -= dr;
+    }
+
+    // Walk forward to the opposite edge collecting all squares
+    let mut bb = BitBoard::EMPTY;
+    while f >= 0 && f < 8 && r >= 0 && r < 8 {
+        bb = bb.set_bit(Square::from_file_rank(f as u8, r as u8).0);
+        f += df;
+        r += dr;
+    }
+    bb
 }
 
 #[cfg(test)]
@@ -314,29 +355,6 @@ mod tests {
         assert_eq!(
             compute_knight_attacks("h7".parse().unwrap()),
             BitBoard::from_squares(&squares(&["f8", "f6", "g5"]))
-        );
-    }
-    #[test]
-    fn white_pawn_attacks_from_d4_are_correct() {
-        assert_eq!(
-            compute_pawn_attacks("d4".parse().unwrap(), White, true),
-            BitBoard::from_squares(&squares(&["e5"]))
-        );
-        assert_eq!(
-            compute_pawn_attacks("d4".parse().unwrap(), White, false),
-            BitBoard::from_squares(&squares(&["c5"]))
-        );
-    }
-
-    #[test]
-    fn black_pawn_attacks_from_d4_are_correct() {
-        assert_eq!(
-            compute_pawn_attacks("d4".parse().unwrap(), Color::Black, true),
-            BitBoard::from_squares(&squares(&["e3"]))
-        );
-        assert_eq!(
-            compute_pawn_attacks("d4".parse().unwrap(), Color::Black, false),
-            BitBoard::from_squares(&squares(&["c3"]))
         );
     }
 }
