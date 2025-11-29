@@ -1,4 +1,4 @@
-use crate::board::{Board, Piece};
+use crate::board::Board;
 use crate::eval::piece_value_mg;
 use crate::r#move::Move;
 

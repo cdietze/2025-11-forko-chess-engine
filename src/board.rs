@@ -137,108 +137,113 @@ impl Board {
         Ok(())
     }
 
-    /// Apply a move without checking legality. Returns UnmakeInfo for potential rollback.
-    /// This is used internally by make_move and make_move_with_info.
+    /// Apply a move without checking legality. Returns UnmakeInfo for rollback.
     fn make_move_unchecked(&mut self, m: Move) -> UnmakeInfo {
+        #[inline]
+        fn idx_to_piece(i: usize) -> Piece {
+            match i {
+                0 => Piece::King,
+                1 => Piece::Queen,
+                2 => Piece::Rook,
+                3 => Piece::Bishop,
+                4 => Piece::Knight,
+                _ => Piece::Pawn,
+            }
+        }
+
         let from = m.from().0;
         let to = m.to().0;
 
-        // Capture irreversible state before applying the move
+        // Save irreversible state
         let prev_en_passant = self.en_passant;
         let prev_castling_rights = self.castling_rights;
 
-        // Determine which piece is moving based on the source square
-        let mut moved_piece_idx: Option<usize> = None;
-        for i in 0..Piece::COUNT {
-            if self.pieces[i].is_set(from) {
-                moved_piece_idx = Some(i);
-                break;
-            }
+        // Find moved piece index (0..=5) by probing our six piece bitboards
+        let mut pi = 0usize;
+        while pi < Piece::COUNT && !self.pieces[pi].is_set(from) {
+            pi += 1;
         }
-        debug_assert!(moved_piece_idx.is_some(), "No piece found at source square");
-        let pi = moved_piece_idx.unwrap();
+        debug_assert!(pi < Piece::COUNT, "No piece at source square");
+        let moved_piece = idx_to_piece(pi);
 
-        let moved_piece = match pi {
-            x if x == Piece::King.idx() => Piece::King,
-            x if x == Piece::Queen.idx() => Piece::Queen,
-            x if x == Piece::Rook.idx() => Piece::Rook,
-            x if x == Piece::Bishop.idx() => Piece::Bishop,
-            x if x == Piece::Knight.idx() => Piece::Knight,
-            _ => Piece::Pawn,
-        };
-
-        // Determine captured piece (if any) before the move is executed
+        // Figure out captured piece (if any) cheaply
         let captured_piece = if m.capture() {
-            // Identify if this is en passant: moving piece is a pawn and special1() set on capture
-            let moved_is_pawn = moved_piece == Piece::Pawn;
-            if moved_is_pawn && !m.promotion() && m.special1() {
-                Some(Piece::Pawn)
+            if moved_piece == Piece::Pawn && !m.promotion() && m.special1() {
+                Some(Piece::Pawn) // en passant
             } else {
-                // Normal capture: piece currently on destination
-                self.piece_at(to).map(|(p, _c)| p)
+                let mut ci = 0usize;
+                let mut found = None;
+                while ci < Piece::COUNT {
+                    if self.pieces[ci].is_set(to) {
+                        found = Some(idx_to_piece(ci));
+                        break;
+                    }
+                    ci += 1;
+                }
+                found
             }
         } else {
             None
         };
 
-        // Handle capture: clear any piece on destination
-        if m.capture() {
-            for j in 0..Piece::COUNT {
-                self.pieces[j] = self.pieces[j].clear_bit(to);
-            }
-        }
-
+        // Execute the move on piece bitboards
         if m.promotion() {
-            // Promote the piece: clear "from" and add promotion piece to "to"
+            // Pawn promotes to piece encoded in move
             self.pieces[pi] = self.pieces[pi].clear_bit(from);
-            self.pieces[m.promotion_piece().idx()] =
-                self.pieces[m.promotion_piece().idx()].set_bit(to);
+            let pr = m.promotion_piece().idx();
+            // If it’s a capture, clear only the captured piece on 'to'
+            if captured_piece.is_some() {
+                let ci = m.promotion_piece().idx(); // dummy use to keep pr separate
+                let _ = ci; // silence unused in debug when not capturing
+                // Clear destination occupant (detected above)
+                if let Some(cp) = captured_piece {
+                    self.pieces[cp.idx()] = self.pieces[cp.idx()].clear_bit(to);
+                }
+            }
+            self.pieces[pr] = self.pieces[pr].set_bit(to);
         } else {
-            // Move the piece: set "to" and clear "from"
-            self.pieces[pi] = self.pieces[pi].clear_bit(from).set_bit(to);
+            // Normal move (quiet or capture, including castle king leg and ep destination)
+            if let Some(cp) = captured_piece {
+                // Normal capture (not en passant)
+                if !(m.special1() && moved_piece == Piece::Pawn) {
+                    self.pieces[cp.idx()] = self.pieces[cp.idx()].clear_bit(to);
+                }
+            }
+            // Move the mover
+            self.pieces[pi].0 ^= (1u64 << from) | (1u64 << to);
         }
 
+        // Special moves
         if !m.promotion() && m.special0() {
-            // It's a castling move. At this point the king has already been moved
-            // by the generic movement code above. We only need to move the rook
-            // and update color bitboards and castling rights.
+            // Castling: move rook
             let side: CastleSide = if m.special1() { QueenSide } else { KingSide };
-            let color_idx = self.color_to_move().idx();
-            let setup = &CASTLING_SETUPS[color_idx][side as usize];
-
-            // Move the rook from its original square to the destination square
-            let rook_idx = Piece::Rook.idx();
-            self.pieces[rook_idx] = self.pieces[rook_idx]
-                .clear_bit(setup.rook_from.0)
-                .set_bit(setup.rook_to.0);
-
-            // Update color bitboard for the rook move
+            let setup = &CASTLING_SETUPS[self.color_to_move().idx()][side as usize];
+            let rook = Piece::Rook.idx();
+            self.pieces[rook].0 ^= (1u64 << setup.rook_from.0) | (1u64 << setup.rook_to.0);
+            // Update color map for rook squares (both occupied after move)
             self.white = self
                 .white
                 .set(setup.rook_from.0, false)
                 .set(setup.rook_to.0, self.white_to_move);
         }
 
-        // Clear the en passant square
+        // En passant housekeeping
         self.en_passant = Square::ILLEGAL_SQUARE;
-        if pi == Piece::Pawn.idx() && !m.promotion() {
-            if !m.capture() && m.special1() {
-                // This is a double pawn push: Spawn a en passant pawn at the skipped square
+        if moved_piece == Piece::Pawn {
+            if !m.promotion() && !m.capture() && m.special1() {
+                // double push: enable ep square behind pawn
                 self.en_passant = m.from().add_offset(self.color_to_move().forward_offset());
-            } else if m.capture() && m.special1() {
-                // This is a en passant capture, remove the pawn
-                let actual_pawn_square = m.to().add_offset(-self.color_to_move().forward_offset());
-                self.pieces[Piece::Pawn.idx()] =
-                    self.pieces[Piece::Pawn.idx()].clear_bit(actual_pawn_square.0);
+            } else if !m.promotion() && m.capture() && m.special1() {
+                // en passant capture: remove the pawn behind 'to'
+                let sq = m.to().add_offset(-self.color_to_move().forward_offset());
+                self.pieces[Piece::Pawn.idx()] = self.pieces[Piece::Pawn.idx()].clear_bit(sq.0);
             }
         }
 
-        if pi == Piece::King.idx() {
-            // After the king has moved, both castling rights for that color are gone
+        // Update castling rights
+        if moved_piece == Piece::King {
             self.castling_rights[self.color_to_move().idx()] = [false, false];
-        }
-        if pi == Piece::Rook.idx() {
-            // After the rook has moved, remove castling rights for that castle
+        } else if moved_piece == Piece::Rook {
             let setups = &CASTLING_SETUPS[self.color_to_move().idx()];
             for setup in setups {
                 if setup.rook_from == m.from() {
@@ -247,17 +252,17 @@ impl Board {
                 }
             }
         }
-        if m.capture() {
-            // If a rook is captured, castling rights for that castle are lost as well.
-            let opp_color = self.color_to_move().opposite();
-            let setups = &CASTLING_SETUPS[opp_color.idx()];
-            for setup in setups {
-                if setup.rook_from == m.to() {
-                    self.castling_rights[opp_color.idx()][setup.castle_side.idx()] = false;
+        if let Some(cp) = captured_piece
+            && cp == Piece::Rook {
+                let opp = self.color_to_move().opposite();
+                for setup in &CASTLING_SETUPS[opp.idx()] {
+                    if setup.rook_from == m.to() {
+                        self.castling_rights[opp.idx()][setup.castle_side.idx()] = false;
+                    }
                 }
             }
-        }
-        // Update "white" BitBoard: update "to" and "from" does not matter anymore,
+
+        // Color bitboard: only destination matters (source becomes empty)
         self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
 
@@ -271,97 +276,69 @@ impl Board {
 
     // Note: Board legality is expected to have been ensured before calling unmake.
     pub fn unmake_move(&mut self, m: Move, info: UnmakeInfo) {
-        // Restore side to move first: the move we are undoing was just played by the opposite side
+        // The move we undo was made by the opposite color
         self.white_to_move = !self.white_to_move;
         let mover_color = self.color_to_move();
         let opponent_color = mover_color.opposite();
 
         let from = m.from().0;
         let to = m.to().0;
-        let from_bit = 1u64 << from;
-        let to_bit = 1u64 << to;
-        let move_mask = from_bit | to_bit;
+        let mask = (1u64 << from) | (1u64 << to);
 
-        // Use provided irreversible state directly
-        let prev_ep: Square = info.prev_en_passant;
-        let prev_cr = info.prev_castling_rights;
-        let captured_piece_opt: Option<Piece> = info.captured_piece;
-
-        // Undo special moves first where necessary
-        let is_castle = !m.promotion() && !m.capture() && m.special0();
-        let is_ep_capture = !m.promotion() && m.capture() && m.special1();
-
-        if is_castle {
+        // Undo by type
+        if !m.promotion() && !m.capture() && m.special0() {
+            // Castle: move king and rook back
             let side: CastleSide = if m.special1() { QueenSide } else { KingSide };
             let setup = &CASTLING_SETUPS[mover_color.idx()][side as usize];
-            let rook_mask = (1u64 << setup.rook_from.0) | (1u64 << setup.rook_to.0);
-            self.pieces[Piece::Rook.idx()].0 ^= rook_mask;
-            self.pieces[Piece::King.idx()].0 ^= move_mask;
-            if self.white_to_move {
-                self.white.0 ^= (move_mask | rook_mask);
-            }
+            self.pieces[Piece::King.idx()].0 ^= mask;
+            self.pieces[Piece::Rook.idx()].0 ^=
+                (1u64 << setup.rook_from.0) | (1u64 << setup.rook_to.0);
+            // Update color bits for the occupied squares
             self.white = self
                 .white
                 .set(to, false)
-                .set(from, mover_color == Color::White);
+                .set(from, mover_color == Color::White)
+                .set(setup.rook_to.0, false)
+                .set(setup.rook_from.0, mover_color == Color::White);
         } else if m.promotion() {
             // Remove promoted piece at 'to', restore pawn at 'from'
-            let promo_idx = m.promotion_piece().idx();
-            let pawn_idx = Piece::Pawn.idx();
-            self.pieces[promo_idx] = self.pieces[promo_idx].clear_bit(to);
-            self.pieces[pawn_idx] = self.pieces[pawn_idx].set_bit(from);
-            // Update color bitboard for mover piece move back
+            self.pieces[m.promotion_piece().idx()] =
+                self.pieces[m.promotion_piece().idx()].clear_bit(to);
+            self.pieces[Piece::Pawn.idx()] = self.pieces[Piece::Pawn.idx()].set_bit(from);
             self.white = self
                 .white
                 .set(to, false)
                 .set(from, mover_color == Color::White);
-            // If it was a promotion capture, restore the captured piece on 'to'
-            if let Some(cp) = captured_piece_opt {
-                let ci = cp.idx();
-                self.pieces[ci] = self.pieces[ci].set_bit(to);
+            if let Some(cp) = info.captured_piece {
+                self.pieces[cp.idx()] = self.pieces[cp.idx()].set_bit(to);
                 self.white = self.white.set(to, opponent_color == Color::White);
             }
-        } else if is_ep_capture {
-            // En passant: the mover's pawn moved to 'to' and captured a pawn behind 'to'
-            // Move the pawn back from 'to' to 'from'
-            let pawn_idx = Piece::Pawn.idx();
-            self.pieces[pawn_idx] = self.pieces[pawn_idx].clear_bit(to).set_bit(from);
+        } else if m.capture() && m.special1() && info.moved_piece == Piece::Pawn {
+            // En passant capture: move pawn back and restore captured pawn behind 'to'
+            self.pieces[Piece::Pawn.idx()].0 ^= mask;
             self.white = self
                 .white
                 .set(to, false)
                 .set(from, mover_color == Color::White);
-            // Restore the captured pawn behind 'to'
-            let captured_sq = Square(to).add_offset(-mover_color.forward_offset());
-            self.pieces[pawn_idx] = self.pieces[pawn_idx].set_bit(captured_sq.0);
-            self.white = self
-                .white
-                .set(captured_sq.0, opponent_color == Color::White);
-        } else if m.capture() {
-            if let Some(cp) = captured_piece_opt {
-                self.pieces[info.moved_piece.idx()].0 ^= move_mask;
-                self.white = self
-                    .white
-                    .set(to, false)
-                    .set(from, mover_color == Color::White);
-                let ci = cp.idx();
-                self.pieces[ci] = self.pieces[ci].set_bit(to);
-                self.white = self.white.set(to, opponent_color == Color::White);
-            }
+            let cap_sq = Square(to).add_offset(-mover_color.forward_offset());
+            self.pieces[Piece::Pawn.idx()] = self.pieces[Piece::Pawn.idx()].set_bit(cap_sq.0);
+            self.white = self.white.set(cap_sq.0, opponent_color == Color::White);
         } else {
-            // Regular quiet move
-            self.pieces[info.moved_piece.idx()].0 ^= move_mask;
-            // if self.white_to_move {
-            //      self.white.0 ^= move_mask;
-            // }
+            // Quiet or normal capture
+            self.pieces[info.moved_piece.idx()].0 ^= mask;
             self.white = self
                 .white
                 .set(to, false)
                 .set(from, mover_color == Color::White);
+            if let Some(cp) = info.captured_piece {
+                self.pieces[cp.idx()] = self.pieces[cp.idx()].set_bit(to);
+                self.white = self.white.set(to, opponent_color == Color::White);
+            }
         }
 
-        // Restore en passant square and castling rights
-        self.en_passant = prev_ep;
-        self.castling_rights = prev_cr;
+        // Restore irreversible state
+        self.en_passant = info.prev_en_passant;
+        self.castling_rights = info.prev_castling_rights;
     }
 
     pub fn set_piece(mut self, square: Square, piece: Piece, color: Color) -> Self {
