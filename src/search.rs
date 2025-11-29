@@ -3,6 +3,7 @@ use crate::board::Color::White;
 use crate::eval::eval;
 use crate::r#move::Move;
 use crate::move_gen::{generate_moves, king_attack_map};
+use crate::move_ordering::{KillerMoves, MovePicker};
 use crate::transposition::{NodeType, TTEntry, TranspositionTable, position_key};
 use crate::util::with_separator;
 
@@ -12,14 +13,16 @@ const STALEMATE_SCORE: i32 = 0;
 
 struct SearchInfo {
     node_count: u64,
+    qsearch_node_count: u64,
 }
 
 impl std::fmt::Debug for SearchInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "SearchInfo {{ node_count: {} }}",
-            with_separator(self.node_count as i32)
+            "SearchInfo {{ nodes: {}, qnodes: {} }}",
+            with_separator(self.node_count as i32),
+            with_separator(self.qsearch_node_count as i32)
         )
     }
 }
@@ -30,11 +33,16 @@ pub struct SearchResult {
 }
 
 pub fn find_best_move(board: &mut Board, depth: u8, tt: &mut TranspositionTable) -> SearchResult {
-    let mut info = SearchInfo { node_count: 0 };
+    let mut info = SearchInfo {
+        node_count: 0,
+        qsearch_node_count: 0,
+    };
+    let mut killers = KillerMoves::new();
     let mut best_overall_move: Option<Move> = None;
     let mut best_overall_score: i32 = -INF + 1;
 
     for d in 1..=depth {
+        killers.clear(); // Clear killers each iteration
         let (score, m) = nega_max_impl(
             board,
             d,
@@ -44,6 +52,8 @@ pub fn find_best_move(board: &mut Board, depth: u8, tt: &mut TranspositionTable)
             true,
             tt,
             best_overall_move,
+            &mut killers,
+            0,
         );
         if m.is_some() {
             best_overall_move = m;
@@ -63,6 +73,52 @@ pub fn find_best_move(board: &mut Board, depth: u8, tt: &mut TranspositionTable)
     }
 }
 
+/// Quiescence search: extends search on tactical moves until position is quiet
+fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, info: &mut SearchInfo) -> i32 {
+    info.qsearch_node_count += 1;
+
+    // Stand-pat: static evaluation
+    let eval_score = eval(board);
+    let stand_pat = if board.color_to_move() == White {
+        eval_score
+    } else {
+        -eval_score
+    };
+
+    if stand_pat >= beta {
+        return beta;
+    }
+    if stand_pat > alpha {
+        alpha = stand_pat;
+    }
+
+    // Generate and search only captures
+    let moves = generate_moves(board);
+
+    for m in moves {
+        // Only search captures and promotions
+        if !m.capture() && !m.promotion() {
+            continue;
+        }
+
+        let mut b = *board;
+        if b.make_move(m).is_err() {
+            continue;
+        }
+
+        let score = -quiescence(&mut b, -beta, -alpha, info);
+
+        if score >= beta {
+            return beta;
+        }
+        if score > alpha {
+            alpha = score;
+        }
+    }
+
+    alpha
+}
+
 fn nega_max_impl(
     board: &mut Board,
     depth: u8,
@@ -72,6 +128,8 @@ fn nega_max_impl(
     track_move: bool,
     tt: &mut TranspositionTable,
     preferred_move: Option<Move>,
+    killers: &mut KillerMoves,
+    ply: usize,
 ) -> (i32, Option<Move>) {
     info.node_count += 1;
     let key = position_key(board);
@@ -79,88 +137,100 @@ fn nega_max_impl(
     let orig_beta = beta;
 
     // TT probe
-    if let Some(entry) = tt.get(key)
-        && entry.depth >= depth
-    {
-        match entry.flag {
-            NodeType::Exact => {
-                return (entry.score, if track_move { entry.best_move } else { None });
-            }
-            NodeType::LowerBound => {
-                if entry.score >= beta {
+    let tt_move = if let Some(entry) = tt.get(key) {
+        if entry.depth >= depth {
+            match entry.flag {
+                NodeType::Exact => {
                     return (entry.score, if track_move { entry.best_move } else { None });
                 }
-                if entry.score > alpha {
-                    alpha = entry.score;
+                NodeType::LowerBound => {
+                    if entry.score >= beta {
+                        return (entry.score, if track_move { entry.best_move } else { None });
+                    }
+                    if entry.score > alpha {
+                        alpha = entry.score;
+                    }
                 }
-            }
-            NodeType::UpperBound => {
-                if entry.score <= alpha {
-                    return (entry.score, if track_move { entry.best_move } else { None });
+                NodeType::UpperBound => {
+                    if entry.score <= alpha {
+                        return (entry.score, if track_move { entry.best_move } else { None });
+                    }
                 }
             }
         }
-    }
+        entry.best_move
+    } else {
+        None
+    };
+
+    // At leaf nodes, enter quiescence search
     if depth == 0 {
-        let e = eval(board);
-        let e_stm = if board.color_to_move() == White {
-            e
-        } else {
-            -e
-        };
-        return (e_stm, None);
+        return (quiescence(board, alpha, beta, info), None);
     }
-    let mut best_score = -INF + 1;
-    let mut best_move = None;
-    let mut moves = generate_moves(board);
-    // Try TT move first if present
-    if let Some(entry) = tt.get(key)
-        && let Some(tt_move) = entry.best_move
-        && let Some(idx) = moves.iter().position(|m| *m == tt_move)
-    {
-        let m = moves.remove(idx);
-        moves.insert(0, m);
-    }
-    // Then PV move from previous iteration
-    if let Some(pv) = preferred_move
-        && let Some(idx) = moves.iter().position(|m| *m == pv)
-    {
-        let m = moves.remove(idx);
-        moves.insert(0, m);
-    }
+
+    let moves = generate_moves(board);
     if moves.is_empty() {
         let opponent_attack_board = king_attack_map(board, board.color_to_move().opposite());
         if opponent_attack_board
             .and(board.kings().and(board.own_color_board()))
             .is_not_empty()
         {
-            return (CHECKMATE_SCORE - depth as i32, None);
+            return (CHECKMATE_SCORE + ply as i32, None);
         } else {
             return (STALEMATE_SCORE, None);
         }
     }
-    for m in moves {
+
+    let mut best_score = -INF + 1;
+    let mut best_move = None;
+
+    // Determine which move to try first (TT or PV)
+    let first_move = tt_move.or(preferred_move);
+    let killer_moves = killers.get(ply);
+
+    // Use MovePicker for efficient ordering
+    let mut picker = MovePicker::new(board, moves, first_move, killer_moves);
+
+    while let Some(m) = picker.next() {
         // TODO: Don't clone board but use unmake_move
         let mut b = *board;
-        let r = b.make_move(m);
-        if r.is_err() {
+        if b.make_move(m).is_err() {
             continue;
         }
-        let score = -nega_max_impl(&mut b, depth - 1, -beta, -alpha, info, false, tt, None).0;
+
+        let score = -nega_max_impl(
+            &mut b,
+            depth - 1,
+            -beta,
+            -alpha,
+            info,
+            false,
+            tt,
+            None,
+            killers,
+            ply + 1,
+        )
+        .0;
+
         if score > best_score {
             best_score = score;
-            // Always track the local best move for TT storage; return value will honor track_move
             best_move = Some(m);
         }
-        // alpha-beta pruning
+
         if best_score > alpha {
             alpha = best_score;
         }
+
         if alpha >= beta {
+            // Beta cutoff: store killer move if it's quiet
+            if !m.capture() && !m.promotion() {
+                killers.store(ply, m);
+            }
             break;
         }
     }
-    // Store in TT — use original alpha/beta to set the correct bound type
+
+    // Store in TT
     let flag = if best_score <= orig_alpha {
         NodeType::UpperBound
     } else if best_score >= orig_beta {
@@ -168,6 +238,7 @@ fn nega_max_impl(
     } else {
         NodeType::Exact
     };
+
     tt.store(TTEntry {
         key,
         depth,
@@ -175,7 +246,8 @@ fn nega_max_impl(
         flag,
         best_move,
     });
-    (best_score, best_move)
+
+    (best_score, if track_move { best_move } else { None })
 }
 
 #[cfg(test)]
@@ -201,14 +273,16 @@ mod tests {
     fn should_find_mate_in_2() {
         let mut board = Board::from_fen("k7/8/1K6/8/8/8/8/1R6 w - - 0 1");
         let result = super::find_best_move(&mut board, 4, &mut new_transposition_table());
-        assert!(result.score >= -CHECKMATE_SCORE);
+        let ply = 3;
+        assert!(result.score == -CHECKMATE_SCORE - ply);
     }
 
     #[test]
     fn should_find_mate_in_2_for_black() {
         let mut board = Board::from_fen("K7/8/1k6/8/8/8/8/1r6 b - - 0 1");
         let result = super::find_best_move(&mut board, 4, &mut new_transposition_table());
-        assert!(result.score >= -CHECKMATE_SCORE);
+        let ply = 3;
+        assert!(result.score >= -CHECKMATE_SCORE - ply);
     }
 
     #[test]
@@ -248,7 +322,7 @@ mod tests {
         );
 
         for ply in 1..=50 {
-            let result = search::find_best_move(&mut board, 6, &mut tt);
+            let result = search::find_best_move(&mut board, 8, &mut tt);
             match result.move_ {
                 Some(m) => {
                     println!(

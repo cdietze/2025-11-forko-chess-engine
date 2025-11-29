@@ -281,6 +281,12 @@ impl Board {
         None
     }
 
+    /// Public accessor for piece lookup (used by move ordering)
+    #[inline]
+    pub fn piece_at_square(&self, square: Square) -> Option<(Piece, Color)> {
+        self.piece_at(square.0)
+    }
+
     /// Creates an empty board with no pieces set.
     #[inline]
     pub const fn empty() -> Self {

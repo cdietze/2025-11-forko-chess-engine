@@ -197,6 +197,12 @@ fn piece_value(piece: Piece, mg: bool) -> i32 {
     if mg { MG_VALUE[idx] } else { EG_VALUE[idx] }
 }
 
+/// Public accessor for midgame piece values (used by move ordering)
+#[inline]
+pub fn piece_value_mg(piece: Piece) -> i32 {
+    MG_VALUE[piece.idx()]
+}
+
 fn eval_side(board: &Board, color: Color, mg: bool) -> i32 {
     let mut score = 0;
     for &p in &Piece::ALL {

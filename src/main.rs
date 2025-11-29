@@ -6,6 +6,7 @@ mod fen;
 mod geometry;
 mod r#move;
 mod move_gen;
+mod move_ordering;
 mod perft;
 mod precomputed;
 mod search;
