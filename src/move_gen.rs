@@ -1,10 +1,10 @@
 use crate::bitboard::BitBoard;
 use crate::board::Color::White;
 use crate::board::{Board, CastlingRights, Color, Piece};
-use crate::geometry::{Dir8, between_bb};
+use crate::geometry::Dir8;
 use crate::r#move::Move;
 use crate::precomputed::{
-    CASTLING_SETUPS, CastleSide, king_moves, knight_attacks, line_bb, ray_attacks,
+    CASTLING_SETUPS, CastleSide, between_bb, king_moves, knight_attacks, line_bb, ray_attacks,
 };
 use crate::square::Square;
 

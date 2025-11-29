@@ -1,6 +1,5 @@
 use crate::bitboard::BitBoard;
 use crate::board::Color;
-use crate::board::Color::White;
 use crate::geometry::{Dir4, Dir8, get_dir};
 use crate::square::Square;
 
@@ -26,6 +25,13 @@ pub const fn knight_attacks(square: Square) -> BitBoard {
 #[inline]
 pub fn line_bb(from: Square, to: Square) -> BitBoard {
     LINE_BB[from.0 as usize][to.0 as usize]
+}
+
+/// Returns a `BitBoard` containing all squares strictly between `from` and `to` (exclusive),
+/// if they are aligned on a rank, file or diagonal; otherwise returns empty.
+#[inline]
+pub fn between_bb(from: Square, to: Square) -> BitBoard {
+    BETWEEN_BB[from.0 as usize][to.0 as usize]
 }
 
 #[repr(u8)]
@@ -62,6 +68,20 @@ const LINE_BB: [[BitBoard; 64]; 64] = {
         let mut j = 0;
         while j < 64 {
             table[i][j] = compute_line_bb(Square(i as u8), Square(j as u8));
+            j += 1;
+        }
+        i += 1;
+    }
+    table
+};
+
+const BETWEEN_BB: [[BitBoard; 64]; 64] = {
+    let mut table = [[BitBoard(0); 64]; 64];
+    let mut i = 0;
+    while i < 64 {
+        let mut j = 0;
+        while j < 64 {
+            table[i][j] = compute_between_bb(Square(i as u8), Square(j as u8));
             j += 1;
         }
         i += 1;
@@ -218,6 +238,48 @@ const fn compute_line_bb(from: Square, to: Square) -> BitBoard {
     // Walk forward to the opposite edge collecting all squares
     let mut bb = BitBoard::EMPTY;
     while f >= 0 && f < 8 && r >= 0 && r < 8 {
+        bb = bb.set_bit(Square::from_file_rank(f as u8, r as u8).0);
+        f += df;
+        r += dr;
+    }
+    bb
+}
+
+const fn compute_between_bb(from: Square, to: Square) -> BitBoard {
+    if from.0 == to.0 {
+        return BitBoard::EMPTY;
+    }
+    let dir = get_dir(from, to);
+    let Some(_dir) = dir else {
+        return BitBoard::EMPTY;
+    };
+
+    let f1 = from.file() as i8;
+    let r1 = from.rank() as i8;
+    let f2 = to.file() as i8;
+    let r2 = to.rank() as i8;
+
+    // Compute step towards `to` using const-friendly comparisons
+    let df = if f2 > f1 {
+        1
+    } else if f2 < f1 {
+        -1
+    } else {
+        0
+    };
+    let dr = if r2 > r1 {
+        1
+    } else if r2 < r1 {
+        -1
+    } else {
+        0
+    };
+
+    let mut f = f1 + df;
+    let mut r = r1 + dr;
+    let mut bb = BitBoard::EMPTY;
+    while f != f2 || r != r2 {
+        // f and r are guaranteed to be within 0..=7 for aligned squares
         bb = bb.set_bit(Square::from_file_rank(f as u8, r as u8).0);
         f += df;
         r += dr;
