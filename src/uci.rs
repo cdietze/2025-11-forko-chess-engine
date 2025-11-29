@@ -89,15 +89,15 @@ impl UciEngine {
         let mut name = String::from("2025-11-chess");
         let mut parts: Vec<String> = Vec::new();
 
-        if let Some(tag) = option_env!("BUILD_GIT_TAG") {
-            if !tag.is_empty() {
-                parts.push(format!("tag {}", tag));
-            }
+        if let Some(tag) = option_env!("BUILD_GIT_TAG")
+            && !tag.is_empty()
+        {
+            parts.push(format!("tag {}", tag));
         }
-        if let Some(commit) = option_env!("BUILD_GIT_COMMIT") {
-            if !commit.is_empty() {
-                parts.push(format!("commit {}", commit));
-            }
+        if let Some(commit) = option_env!("BUILD_GIT_COMMIT")
+            && !commit.is_empty()
+        {
+            parts.push(format!("commit {}", commit));
         }
         if parts.is_empty() {
             // Fallback to Cargo package version if available.
@@ -194,10 +194,10 @@ impl UciEngine {
     }
 
     fn handle_setdepth<'a>(&mut self, mut tokens: impl Iterator<Item = &'a str>) {
-        if let Some(n) = tokens.next() {
-            if let Ok(v) = n.parse::<u8>() {
-                self.default_depth = v;
-            }
+        if let Some(n) = tokens.next()
+            && let Ok(v) = n.parse::<u8>()
+        {
+            self.default_depth = v;
         }
         eprintln!("[debug] setdepth: default_depth={}", self.default_depth);
     }
@@ -241,11 +241,11 @@ fn apply_position_command<'a>(
     }
 
     // Optional moves
-    if let Some(next) = tokens.next() {
-        if next == "moves" {
-            for mtoken in tokens {
-                apply_one_move_token(board, mtoken)?;
-            }
+    if let Some(next) = tokens.next()
+        && next == "moves"
+    {
+        for mtoken in tokens {
+            apply_one_move_token(board, mtoken)?;
         }
     }
     Ok(())

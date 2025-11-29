@@ -78,7 +78,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         );
         add_piece_moves(
             AddPieceMovesProps {
-                board: &board,
+                board,
                 own_king,
                 occupied,
                 pinned,
@@ -104,7 +104,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         let lift_check_mask = attacks_to_king.or(attack_line_bb);
         add_piece_moves(
             AddPieceMovesProps {
-                board: &board,
+                board,
                 own_king,
                 occupied,
                 pinned,
@@ -390,12 +390,12 @@ fn pawn_captures(own_pawns: BitBoard, color_to_move: Color, capture_east: bool) 
         White => own_pawns.shift_north(),
         _ => own_pawns.shift_south(),
     };
-    let b = if capture_east {
+
+    if capture_east {
         b.shift_east()
     } else {
         b.shift_west()
-    };
-    b
+    }
 }
 #[inline]
 fn pawn_captures_both(own_pawns: BitBoard, color_to_move: Color) -> BitBoard {

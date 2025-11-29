@@ -50,7 +50,7 @@ impl Move {
     ) -> Self {
         let f = (from.0 as u16) & Self::FROM_MASK;
         let t = (to.0 as u16) & Self::TO_MASK;
-        let flags = ((promotion as u16) << 0)
+        let flags = (promotion as u16)
             | ((capture as u16) << 1)
             | ((special0 as u16) << 2)
             | ((special1 as u16) << 3);

@@ -303,28 +303,28 @@ impl Board {
         let black_rooks = self.pieces(Piece::Rook, Color::Black);
 
         // White kingside: King on E1 and rook on H1
-        if rights[Color::White.idx()][0] {
-            if !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::H1.0)) {
-                rights[Color::White.idx()][0] = false;
-            }
+        if rights[Color::White.idx()][0]
+            && !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::H1.0))
+        {
+            rights[Color::White.idx()][0] = false;
         }
         // White queenside: King on E1 and rook on A1
-        if rights[Color::White.idx()][1] {
-            if !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::A1.0)) {
-                rights[Color::White.idx()][1] = false;
-            }
+        if rights[Color::White.idx()][1]
+            && !(white_kings.is_set(Square::E1.0) && white_rooks.is_set(Square::A1.0))
+        {
+            rights[Color::White.idx()][1] = false;
         }
         // Black kingside: King on E8 and rook on H8
-        if rights[Color::Black.idx()][0] {
-            if !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::H8.0)) {
-                rights[Color::Black.idx()][0] = false;
-            }
+        if rights[Color::Black.idx()][0]
+            && !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::H8.0))
+        {
+            rights[Color::Black.idx()][0] = false;
         }
         // Black queenside: King on E8 and rook on A8
-        if rights[Color::Black.idx()][1] {
-            if !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::A8.0)) {
-                rights[Color::Black.idx()][1] = false;
-            }
+        if rights[Color::Black.idx()][1]
+            && !(black_kings.is_set(Square::E8.0) && black_rooks.is_set(Square::A8.0))
+        {
+            rights[Color::Black.idx()][1] = false;
         }
         self.castling_rights = rights;
         self

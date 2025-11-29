@@ -61,7 +61,7 @@ pub struct CastlingSetup {
     pub empty_squares: BitBoard,
 }
 
-const LINE_BB: [[BitBoard; 64]; 64] = {
+static LINE_BB: [[BitBoard; 64]; 64] = {
     let mut table = [[BitBoard(0); 64]; 64];
     let mut i = 0;
     while i < 64 {
@@ -75,7 +75,7 @@ const LINE_BB: [[BitBoard; 64]; 64] = {
     table
 };
 
-const BETWEEN_BB: [[BitBoard; 64]; 64] = {
+static BETWEEN_BB: [[BitBoard; 64]; 64] = {
     let mut table = [[BitBoard(0); 64]; 64];
     let mut i = 0;
     while i < 64 {

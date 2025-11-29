@@ -1,5 +1,3 @@
-use crate::bitboard::BitBoard;
-use crate::precomputed;
 use crate::square::Square;
 
 #[repr(u8)]
