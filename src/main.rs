@@ -10,6 +10,7 @@ mod perft;
 mod precomputed;
 mod search;
 mod square;
+mod transposition;
 mod uci;
 mod util;
 

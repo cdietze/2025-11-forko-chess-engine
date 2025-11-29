@@ -3,6 +3,7 @@ use crate::fen::STARTPOS_FEN;
 use crate::r#move::Move;
 use crate::move_gen::generate_moves;
 use crate::search;
+use crate::transposition::TranspositionTable;
 
 /// Public entrypoint for the UCI protocol loop.
 /// Keeps debug logging on stderr; UCI-required outputs on stdout.
@@ -46,6 +47,7 @@ fn startpos_board() -> Board {
 struct UciEngine {
     board: Board,
     default_depth: u8,
+    transposition_table: TranspositionTable,
 }
 
 impl UciEngine {
@@ -53,6 +55,7 @@ impl UciEngine {
         Self {
             board: startpos_board(),
             default_depth: 3,
+            transposition_table: TranspositionTable::new(1_000_000),
         }
     }
 
@@ -179,7 +182,7 @@ impl UciEngine {
 
         // Synchronous search, no stop support yet (planned for future threading)
         let mut b = self.board; // copy
-        let result = search::find_best_move(&mut b, d);
+        let result = search::find_best_move(&mut b, d, &mut self.transposition_table);
 
         println!("info depth {} score cp {}", d, result.score);
         if let Some(m) = result.move_ {

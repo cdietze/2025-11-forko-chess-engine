@@ -586,6 +586,7 @@ mod tests {
     use super::*;
     use crate::board::{Color, Piece};
     use crate::search::find_best_move;
+    use crate::transposition::TranspositionTable;
     use crate::util::assert_eq_unordered;
     use rand::prelude::IndexedRandom;
     use std::collections::BTreeSet;
@@ -788,7 +789,7 @@ mod tests {
     #[test]
     fn case_2() {
         let mut board = Board::from_fen("r1b1r3/pp1pkppP/2npp3/8/3P4/2P1NN2/PP4R1/R6K w - - 1 3");
-        find_best_move(&mut board, 2);
+        find_best_move(&mut board, 2, &mut TranspositionTable::new(1_000));
         // should not panic!
     }
 }
