@@ -1,12 +1,18 @@
 #[cfg(test)]
 mod tests {
     use crate::board::Board;
-    use crate::move_gen::generate_moves;
+    use crate::move_gen::{generate_moves, is_legal};
     use crate::util::with_separator;
     use std::cmp::min;
     use std::time::Instant;
 
+    #[inline]
     fn perft(board: &Board, depth: u8) -> u64 {
+        // copy is faster...
+        perft_copy(board, depth)
+    }
+
+    fn perft_unmake(board: &Board, depth: u8) -> u64 {
         let start = Instant::now();
         fn foo(b: &mut Board, d: u8, initial_depth: u8) -> u64 {
             if d == 0 {
@@ -15,15 +21,11 @@ mod tests {
             let moves = generate_moves(b);
             let mut nodes = 0u64;
             for m in moves {
-                // In-place make/unmake
                 let info = match b.make_move_with_info(m) {
                     Ok(info) => info,
                     Err(_) => continue,
                 };
                 let n = foo(b, d - 1, initial_depth);
-                // if d == initial_depth {
-                //     println!("{:?}: {}", m, n);
-                // }
                 nodes += n;
                 b.unmake_move(m, info);
             }
@@ -41,7 +43,7 @@ mod tests {
         nodes
     }
 
-    fn perft_copy(board: Board, depth: u8) -> u64 {
+    fn perft_copy(board: &Board, depth: u8) -> u64 {
         let start = Instant::now();
         fn foo(b: &Board, d: u8, initial_depth: u8) -> u64 {
             if d == 0 {
@@ -51,21 +53,15 @@ mod tests {
             let mut nodes = 0u64;
             for m in moves {
                 let mut bb = *b;
-                // In-place make/unmake
-                let info = match bb.make_move_with_info(m) {
-                    Ok(info) => info,
-                    Err(_) => continue,
-                };
+                bb.make_move_unchecked(m);
+                if (!is_legal(&bb)) {
+                    continue;
+                }
                 let n = foo(&bb, d - 1, initial_depth);
-                // if d == initial_depth {
-                //     println!("{:?}: {}", m, n);
-                // }
                 nodes += n;
-                // b.unmake_move(m, info);
             }
             nodes
         }
-        // let mut board = *board;
         let nodes = foo(&board, depth, depth);
         let elapsed = start.elapsed();
         let secs = elapsed.as_secs_f64().max(1e-9);
@@ -140,7 +136,14 @@ mod tests {
     fn test_perft_position_4_depth_5_copy() {
         let board =
             Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-        assert_eq!(perft_copy(board, 5), 15_833_292);
+        assert_eq!(perft_copy(&board, 5), 15_833_292);
+    }
+    #[test]
+    #[cfg_attr(debug_assertions, ignore)]
+    fn test_perft_position_4_depth_5_unmake() {
+        let board =
+            Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+        assert_eq!(perft_unmake(&board, 5), 15_833_292);
     }
     #[test]
     #[cfg_attr(debug_assertions, ignore)]

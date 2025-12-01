@@ -69,6 +69,18 @@ impl Piece {
     pub const fn idx(self) -> usize {
         self as usize
     }
+
+    #[inline]
+    fn from_idx(i: usize) -> Piece {
+        match i {
+            0 => Piece::King,
+            1 => Piece::Queen,
+            2 => Piece::Rook,
+            3 => Piece::Bishop,
+            4 => Piece::Knight,
+            _ => Piece::Pawn,
+        }
+    }
 }
 
 /// Flags for one side whether castling is allowed or not (kingside, queenside).
@@ -138,19 +150,7 @@ impl Board {
     }
 
     /// Apply a move without checking legality. Returns UnmakeInfo for rollback.
-    fn make_move_unchecked(&mut self, m: Move) -> UnmakeInfo {
-        #[inline]
-        fn idx_to_piece(i: usize) -> Piece {
-            match i {
-                0 => Piece::King,
-                1 => Piece::Queen,
-                2 => Piece::Rook,
-                3 => Piece::Bishop,
-                4 => Piece::Knight,
-                _ => Piece::Pawn,
-            }
-        }
-
+    pub fn make_move_unchecked(&mut self, m: Move) -> UnmakeInfo {
         let from = m.from().0;
         let to = m.to().0;
 
@@ -164,7 +164,7 @@ impl Board {
             pi += 1;
         }
         debug_assert!(pi < Piece::COUNT, "No piece at source square");
-        let moved_piece = idx_to_piece(pi);
+        let moved_piece = Piece::from_idx(pi);
 
         // Figure out captured piece (if any) cheaply
         let captured_piece = if m.capture() {
@@ -175,7 +175,7 @@ impl Board {
                 let mut found = None;
                 while ci < Piece::COUNT {
                     if self.pieces[ci].is_set(to) {
-                        found = Some(idx_to_piece(ci));
+                        found = Some(Piece::from_idx(ci));
                         break;
                     }
                     ci += 1;
@@ -253,14 +253,15 @@ impl Board {
             }
         }
         if let Some(cp) = captured_piece
-            && cp == Piece::Rook {
-                let opp = self.color_to_move().opposite();
-                for setup in &CASTLING_SETUPS[opp.idx()] {
-                    if setup.rook_from == m.to() {
-                        self.castling_rights[opp.idx()][setup.castle_side.idx()] = false;
-                    }
+            && cp == Piece::Rook
+        {
+            let opp = self.color_to_move().opposite();
+            for setup in &CASTLING_SETUPS[opp.idx()] {
+                if setup.rook_from == m.to() {
+                    self.castling_rights[opp.idx()][setup.castle_side.idx()] = false;
                 }
             }
+        }
 
         // Color bitboard: only destination matters (source becomes empty)
         self.white = self.white.set(to, self.white_to_move);
