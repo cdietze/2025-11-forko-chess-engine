@@ -15,8 +15,3 @@ mod transposition;
 mod uci;
 mod util;
 mod wasm;
-
-fn main() {
-    // Delegate to the UCI loop implemented in a separate, extensible module.
-    uci::run();
-}

@@ -588,7 +588,6 @@ mod tests {
     use crate::search::find_best_move;
     use crate::transposition::TranspositionTable;
     use crate::util::assert_eq_unordered;
-    use rand::prelude::IndexedRandom;
     use std::collections::BTreeSet;
 
     fn move_list(list: &[&str]) -> Vec<Move> {

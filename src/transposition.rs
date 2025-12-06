@@ -2,10 +2,33 @@ use crate::board::{Board, Color, Piece};
 use crate::r#move::Move;
 use crate::precomputed::CastleSide;
 use crate::square::Square;
-use rand::rngs::StdRng;
-use rand::{RngCore, SeedableRng};
 use std::collections::HashMap;
 use std::sync::OnceLock;
+
+// Minimal deterministic PRNG to avoid external rand dependency (SplitMix64)
+#[derive(Copy, Clone)]
+struct SplitMix64 {
+    state: u64,
+}
+
+impl SplitMix64 {
+    #[inline]
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
+    #[inline]
+    fn next_u64(&mut self) -> u64 {
+        // Public domain splitmix64
+        let mut z = {
+            self.state = self.state.wrapping_add(0x9E3779B97F4A7C15);
+            self.state
+        };
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+        z ^ (z >> 31)
+    }
+}
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum NodeType {
@@ -72,7 +95,7 @@ static ZOBRIST: OnceLock<Zobrist> = OnceLock::new();
 
 fn init_zobrist() -> Zobrist {
     // Fixed seed for reproducibility across runs/builds.
-    let mut rng = StdRng::seed_from_u64(0xC0FFEE_F00D_FACADE);
+    let mut rng = SplitMix64::new(0xC0FFEE_F00D_FACADE);
     let mut pieces = [[[0u64; 64]; 6]; 2];
     for c in 0..2 {
         for p in 0..6 {
