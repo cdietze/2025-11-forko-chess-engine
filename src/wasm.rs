@@ -7,7 +7,7 @@ extern "C" {
 
 #[wasm_bindgen]
 pub fn greet() {
-    alert("Hello, xxx2025-11-chess");
+    alert("Hello from forko");
 }
 
 #[wasm_bindgen]

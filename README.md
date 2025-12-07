@@ -1,4 +1,6 @@
-# 2025-11-chess-engine
+# Forko
+
+Forko is a chess engine written in Rust.
 
 ## Develop
 
