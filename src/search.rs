@@ -4,7 +4,7 @@ use crate::eval::eval;
 use crate::r#move::Move;
 use crate::move_gen::{generate_moves, king_attack_map};
 use crate::move_ordering::{KillerMoves, MovePicker};
-use crate::transposition::{NodeType, TTEntry, TranspositionTable, position_key};
+use crate::transposition::{NodeType, TTEntry, TranspositionTable};
 use crate::util::with_separator;
 
 const INF: i32 = 1_000_000_000; // search bounds for alpha-beta
@@ -133,7 +133,7 @@ fn nega_max_impl(
     ply: usize,
 ) -> (i32, Option<Move>) {
     info.node_count += 1;
-    let key = position_key(board);
+    let key = board.hash;
     let orig_alpha = alpha;
     let orig_beta = beta;
 

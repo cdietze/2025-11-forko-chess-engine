@@ -96,6 +96,8 @@ pub struct Board {
     /// The square where a e.p. pawn can be captured. Or `Square::ILLEGAL_SQUARE` if no e.p. is possible.
     pub en_passant: Square,
     pub castling_rights: [CastlingRights; Color::COUNT],
+    /// Zobrist hash of the current position (incrementally maintained)
+    pub hash: u64,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -109,6 +111,8 @@ pub struct UnmakeInfo {
     pub captured_piece: Option<Piece>,
     /// The moved piece type
     pub moved_piece: Piece,
+    /// Previous position hash (for fast restore)
+    pub prev_hash: u64,
 }
 
 impl Board {
@@ -151,12 +155,14 @@ impl Board {
 
     /// Apply a move without checking legality. Returns UnmakeInfo for rollback.
     pub fn make_move_unchecked(&mut self, m: Move) -> UnmakeInfo {
+        use crate::zobrist::zobrist;
         let from = m.from().0;
         let to = m.to().0;
 
         // Save irreversible state
         let prev_en_passant = self.en_passant;
         let prev_castling_rights = self.castling_rights;
+        let prev_hash = self.hash;
 
         // Find moved piece index (0..=5) by probing our six piece bitboards
         let mut pi = 0usize;
@@ -165,6 +171,10 @@ impl Board {
         }
         debug_assert!(pi < Piece::COUNT, "No piece at source square");
         let moved_piece = Piece::from_idx(pi);
+        let mover_color = self.color_to_move();
+        let mover_ci = mover_color.idx();
+        let opp_color = mover_color.opposite();
+        let opp_ci = opp_color.idx();
 
         // Figure out captured piece (if any) cheaply
         let captured_piece = if m.capture() {
@@ -187,6 +197,18 @@ impl Board {
         };
 
         // Execute the move on piece bitboards
+        // Maintain incremental zobrist in parallel
+        let z = zobrist();
+        let mut h = self.hash;
+        // side to move toggles every ply
+        h ^= z.side_to_move;
+        // remove previous en-passant file if any
+        if prev_en_passant != Square::ILLEGAL_SQUARE {
+            h ^= z.en_passant_file[(prev_en_passant.0 % 8) as usize];
+        }
+        // piece leaves 'from'
+        h ^= z.pieces[mover_ci][pi][from as usize];
+
         if m.promotion() {
             // Pawn promotes to piece encoded in move
             self.pieces[pi] = self.pieces[pi].clear_bit(from);
@@ -198,19 +220,26 @@ impl Board {
                 // Clear destination occupant (detected above)
                 if let Some(cp) = captured_piece {
                     self.pieces[cp.idx()] = self.pieces[cp.idx()].clear_bit(to);
+                    // hash: remove captured on 'to'
+                    h ^= z.pieces[opp_ci][cp.idx()][to as usize];
                 }
             }
             self.pieces[pr] = self.pieces[pr].set_bit(to);
+            // hash: add promoted on 'to'
+            h ^= z.pieces[mover_ci][pr][to as usize];
         } else {
             // Normal move (quiet or capture, including castle king leg and ep destination)
             if let Some(cp) = captured_piece {
                 // Normal capture (not en passant)
                 if !(m.special1() && moved_piece == Piece::Pawn) {
                     self.pieces[cp.idx()] = self.pieces[cp.idx()].clear_bit(to);
+                    h ^= z.pieces[opp_ci][cp.idx()][to as usize];
                 }
             }
             // Move the mover
             self.pieces[pi].0 ^= (1u64 << from) | (1u64 << to);
+            // hash: add mover on 'to'
+            h ^= z.pieces[mover_ci][pi][to as usize];
         }
 
         // Special moves
@@ -220,6 +249,9 @@ impl Board {
             let setup = &CASTLING_SETUPS[self.color_to_move().idx()][side as usize];
             let rook = Piece::Rook.idx();
             self.pieces[rook].0 ^= (1u64 << setup.rook_from.0) | (1u64 << setup.rook_to.0);
+            // hash: move rook squares
+            h ^= z.pieces[mover_ci][rook][setup.rook_from.0 as usize];
+            h ^= z.pieces[mover_ci][rook][setup.rook_to.0 as usize];
             // Update color map for rook squares (both occupied after move)
             self.white = self
                 .white
@@ -237,6 +269,8 @@ impl Board {
                 // en passant capture: remove the pawn behind 'to'
                 let sq = m.to().add_offset(-self.color_to_move().forward_offset());
                 self.pieces[Piece::Pawn.idx()] = self.pieces[Piece::Pawn.idx()].clear_bit(sq.0);
+                // hash: remove captured pawn behind 'to'
+                h ^= z.pieces[opp_ci][Piece::Pawn.idx()][sq.0 as usize];
             }
         }
 
@@ -263,15 +297,39 @@ impl Board {
             }
         }
 
+        // Toggle castling rights differences
+        for c in 0..Color::COUNT {
+            for s in 0..CastleSide::COUNT {
+                if prev_castling_rights[c][s] != self.castling_rights[c][s] {
+                    h ^= z.castling[c][s];
+                }
+            }
+        }
+
+        // Add new en-passant file if any
+        if self.en_passant != Square::ILLEGAL_SQUARE {
+            h ^= z.en_passant_file[(self.en_passant.0 % 8) as usize];
+        }
+
         // Color bitboard: only destination matters (source becomes empty)
         self.white = self.white.set(to, self.white_to_move);
         self.white_to_move = !self.white_to_move;
+
+        // Commit hash
+        self.hash = h;
+
+        #[cfg(debug_assertions)]
+        {
+            use crate::zobrist::position_key;
+            debug_assert_eq!(self.hash, position_key(self), "incremental hash mismatch");
+        }
 
         UnmakeInfo {
             prev_en_passant,
             prev_castling_rights,
             captured_piece,
             moved_piece,
+            prev_hash,
         }
     }
 
@@ -340,6 +398,13 @@ impl Board {
         // Restore irreversible state
         self.en_passant = info.prev_en_passant;
         self.castling_rights = info.prev_castling_rights;
+        self.hash = info.prev_hash;
+
+        #[cfg(debug_assertions)]
+        {
+            use crate::zobrist::position_key;
+            debug_assert_eq!(self.hash, position_key(self), "unmake hash mismatch");
+        }
     }
 
     pub fn set_piece(mut self, square: Square, piece: Piece, color: Color) -> Self {
@@ -431,6 +496,7 @@ impl Board {
             white_to_move: true,
             en_passant: Square::ILLEGAL_SQUARE,
             castling_rights: [[true; 2]; Color::COUNT],
+            hash: 0,
         }
     }
 
@@ -468,6 +534,8 @@ impl Board {
             rights[Color::Black.idx()][1] = false;
         }
         self.castling_rights = rights;
+        // Ensure zobrist hash is consistent with normalized state
+        self.hash = crate::zobrist::position_key(&self);
         self
     }
 }

@@ -15,6 +15,7 @@ mod transposition;
 mod uci;
 mod util;
 mod wasm;
+mod zobrist;
 
 fn main() {
     // Delegate to the UCI loop implemented in a separate, extensible module.

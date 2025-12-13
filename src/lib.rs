@@ -15,3 +15,4 @@ mod transposition;
 mod uci;
 mod util;
 mod wasm;
+mod zobrist;

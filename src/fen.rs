@@ -1,5 +1,6 @@
 use crate::board::{Board, Color, Piece};
 use crate::square::Square;
+use crate::zobrist::position_key;
 
 /// Standard chess initial position (FEN)
 pub const STARTPOS_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -84,7 +85,9 @@ impl Board {
             s => s.parse::<Square>().unwrap_or(Square::ILLEGAL_SQUARE),
         };
 
-        board.normalize();
+        board = board.normalize();
+        // Initialize Zobrist hash from the final board state
+        board.hash = position_key(&board);
         board
     }
 
