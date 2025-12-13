@@ -1,6 +1,7 @@
 use crate::board::Board;
 use crate::board::Color::White;
-use crate::eval::eval;
+use crate::board::Piece;
+use crate::eval::{eval, piece_value_mg};
 use crate::r#move::Move;
 use crate::move_gen::{generate_moves, king_attack_map};
 use crate::move_ordering::{KillerMoves, MovePicker};
@@ -95,13 +96,54 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, info: &mut SearchInf
         alpha = stand_pat;
     }
 
-    // Generate and search only captures
-    let moves = generate_moves(board);
+    // Generate and search only captures/promotions with simple ordering + pruning
+    const QS_DELTA_MARGIN: i32 = 80; // 0.8 pawn margin
 
-    for m in moves {
-        // Only search captures and promotions
-        if !m.capture() && !m.promotion() {
+    let all_moves = generate_moves(board);
+    let tactical: Vec<Move> = all_moves
+        .into_iter()
+        .filter(|m| m.capture() || m.promotion())
+        .collect();
+
+    // Use MovePicker for ordering (MVV-LVA inside)
+    let mut picker = MovePicker::new(board, tactical, None, [None, None]);
+
+    while let Some(m) = picker.next() {
+        // Delta pruning (disabled implicitly in check since we don't handle checks here)
+        // Compute an optimistic material gain bound for this move
+        let victim_value = if m.capture() {
+            board
+                .piece_at_square(m.to())
+                .map(|(p, _)| piece_value_mg(p))
+                .unwrap_or(0)
+        } else {
+            0
+        };
+
+        let promotion_gain = if m.promotion() {
+            let promo = m.promotion_piece();
+            piece_value_mg(promo) - piece_value_mg(Piece::Pawn)
+        } else {
+            0
+        };
+
+        let optimistic_gain = victim_value + promotion_gain;
+
+        if stand_pat + optimistic_gain + QS_DELTA_MARGIN <= alpha {
+            // This move cannot raise alpha enough
             continue;
+        }
+
+        // Simple SEE-like bad capture pruning: skip clearly losing exchanges
+        if m.capture() {
+            if let Some((attacker_piece, _)) = board.piece_at_square(m.from()) {
+                let attacker_value = piece_value_mg(attacker_piece);
+                let net = optimistic_gain - attacker_value;
+                if net < 0 {
+                    // Losing capture; skip
+                    continue;
+                }
+            }
         }
 
         let mut b = *board;
