@@ -30,6 +30,7 @@ impl std::fmt::Debug for SearchInfo {
 pub struct SearchResult {
     pub score: i32,
     pub move_: Option<Move>,
+    pub nodes: u64,
 }
 
 pub fn find_best_move(board: &mut Board, depth: u8, tt: &mut TranspositionTable) -> SearchResult {
@@ -67,9 +68,11 @@ pub fn find_best_move(board: &mut Board, depth: u8, tt: &mut TranspositionTable)
         info,
         with_separator(tt.map.len() as i32)
     );
+    let total_nodes = info.node_count + info.qsearch_node_count;
     SearchResult {
         score: best_overall_score,
         move_: best_overall_move,
+        nodes: total_nodes,
     }
 }
 
@@ -114,7 +117,6 @@ fn quiescence(board: &mut Board, mut alpha: i32, beta: i32, info: &mut SearchInf
             alpha = score;
         }
     }
-
     alpha
 }
 
@@ -251,6 +253,7 @@ fn nega_max_impl(
 #[cfg(test)]
 mod tests {
     use crate::board::Board;
+    use crate::fen::STARTPOS_FEN;
     use crate::search;
     use crate::search::CHECKMATE_SCORE;
     use crate::transposition::TranspositionTable;
@@ -305,6 +308,32 @@ mod tests {
         let result = super::find_best_move(&mut board, 2, &mut new_transposition_table());
         println!("result: {:?}", result.move_);
         assert_eq!(result.move_.unwrap().algebraic(), "c8d7");
+    }
+
+    #[test]
+    #[cfg_attr(debug_assertions, ignore)]
+    fn search_statistics_depth_run() {
+        use std::time::Instant;
+        let mut board = Board::from_fen(STARTPOS_FEN);
+        let mut tt = TranspositionTable::new(1_000_000);
+        let depth = 10;
+        let start = Instant::now();
+        let result = super::find_best_move(&mut board, depth, &mut tt);
+        let elapsed = start.elapsed();
+        println!(
+            "Search stats -> depth: {}, score: {}, best: {}, elapsed: {:?}, tt_size: {}",
+            depth,
+            with_separator(result.score),
+            result.move_.unwrap().algebraic(),
+            elapsed,
+            with_separator(tt.map.len() as i32)
+        );
+        let secs = elapsed.as_secs_f64().max(1e-9);
+        let nps = with_separator(((result.nodes as f64) / secs) as i32);
+        println!(
+            "Node count at depth {:?}: {} | time: {:.3}s | nps: {}",
+            depth, result.nodes, secs, nps
+        );
     }
 
     #[test]
